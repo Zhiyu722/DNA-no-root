@@ -44,6 +44,7 @@ public class GlassPager extends ViewGroup {
 
     private float downX, downY;
     private boolean dragging;
+    private boolean touchLocked;   // 本次手势已锁定方向(垂直→滚动, 不再抢)
     private int currentPage;
     private int width;
     private OnPageChangedListener listener;
@@ -202,17 +203,25 @@ public class GlassPager extends ViewGroup {
                 downX = ev.getX();
                 downY = ev.getY();
                 dragging = false;
+                touchLocked = false;
                 return false;
             case MotionEvent.ACTION_MOVE: {
                 float dx = ev.getX() - downX;
                 float dy = ev.getY() - downY;
-                if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 0.6f) {
-                    dragging = true;
-                    dragStartPosX = posX;
-                    stopSpring();
-                    velocityTracker.reset();
-                    velocityTracker.addPosition(System.currentTimeMillis(), posX);
-                    return true;
+                if (!dragging && !touchLocked) {
+                    // 第一次显著移动决定方向: 水平→翻页; 垂直→本次手势锁定为滚动(不抢)
+                    if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            dragging = true;
+                            dragStartPosX = posX;
+                            stopSpring();
+                            velocityTracker.reset();
+                            velocityTracker.addPosition(System.currentTimeMillis(), posX);
+                            return true;
+                        } else {
+                            touchLocked = true;
+                        }
+                    }
                 }
                 return dragging;
             }
@@ -249,6 +258,7 @@ public class GlassPager extends ViewGroup {
             case MotionEvent.ACTION_UP: {
                 lastX = -1f;
                 dragging = false;
+                touchLocked = false;
                 double v = velocityTracker.calculateVelocity(100);
                 int target = (int) Math.round(posX / Math.max(1, width));
                 if (Math.abs(v) > 450) {
@@ -263,6 +273,7 @@ public class GlassPager extends ViewGroup {
             case MotionEvent.ACTION_CANCEL:
                 lastX = -1f;
                 dragging = false;
+                touchLocked = false;
                 stopSpring();
                 targetX = Math.round(posX / Math.max(1, width)) * width;
                 posVel = 0;
