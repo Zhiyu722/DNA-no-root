@@ -146,10 +146,20 @@ public class MainActivity extends Activity {
 
         pager.setOnPageChangedListener((index, pos) -> {
             boolean dragging = pager.isDragging();
-            topTabs.setPosition(pos, dragging);   // 拖动 1:1 跟手, 松手弹簧回位
+            topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
-            topTabs.setTranslationX(-pos * dp(12));  // 顶栏轻微视差(有流动感但不破坏布局)
-            if (topArea != null) topArea.setTranslationX(-pos * dp(6)); // 品牌区随动
+            if (dragging) {
+                // 拖动: 顶栏整体跟随手指(按页面宽度的 30% 移动, 强跟手感)
+                float shift = -pos * pager.getWidth() * 0.30f;
+                topTabs.setTranslationX(shift * 0.55f);
+                if (topArea != null) topArea.setTranslationX(shift);
+            } else {
+                // 松手: 顶栏弹性归位(液态过冲)
+                topTabs.animate().translationX(0).setDuration(340)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.5f)).start();
+                if (topArea != null) topArea.animate().translationX(0).setDuration(340)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.3f)).start();
+            }
         });
 
         // 底部指示器
