@@ -132,6 +132,12 @@ public final class BootImage {
         BootParts parts = parse(img);
         BootConfig cfg = parts.cfg;
         p.log("boot header v" + cfg.version + ", page=" + cfg.pageSize + ", cmdline=" + cfg.cmdline);
+        p.log("  kernel=" + (parts.kernelSize / 1024) + " KB"
+                + "  ramdisk=" + (parts.ramdiskSize / 1024) + " KB"
+                + (parts.secondSize > 0 ? "  second=" + (parts.secondSize / 1024) + " KB" : "")
+                + (parts.dtboSize > 0 ? "  dtbo=" + (parts.dtboSize / 1024) + " KB" : "")
+                + (parts.dtbSize > 0 ? "  dtb=" + (parts.dtbSize / 1024) + " KB" : "")
+                + (parts.sigSize > 0 ? "  signature=" + (parts.sigSize / 1024) + " KB" : ""));
 
         try (RandomAccessFile raf = new RandomAccessFile(img, "r")) {
             if (parts.kernelSize > 0) writeRange(raf, outDir, "kernel", parts.kernelOff, parts.kernelSize);
