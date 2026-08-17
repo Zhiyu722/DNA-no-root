@@ -10,14 +10,16 @@ public class ToolPaths {
     public final File mke2fs;
     public final File brotli;
     public final File lz4;
+    public final File dumpErofs;
     public final File payloadDumper;
     public final File libDir;
 
-    public ToolPaths(File debugfs, File mke2fs, File brotli, File lz4, File payloadDumper, File libDir) {
+    public ToolPaths(File debugfs, File mke2fs, File brotli, File lz4, File dumpErofs, File payloadDumper, File libDir) {
         this.debugfs = debugfs;
         this.mke2fs = mke2fs;
         this.brotli = brotli;
         this.lz4 = lz4;
+        this.dumpErofs = dumpErofs;
         this.payloadDumper = payloadDumper;
         this.libDir = libDir;
     }
@@ -32,6 +34,7 @@ public class ToolPaths {
                 new File(prefix + "/bin/mke2fs"),
                 new File(prefix + "/bin/brotli"),
                 new File(prefix + "/bin/lz4"),
+                new File(prefix + "/bin/dump.erofs"),
                 new File(System.getenv("PDG") != null ? System.getenv("PDG") : "build/tools/payload-dumper-go"),
                 lib);
     }

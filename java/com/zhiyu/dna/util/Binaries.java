@@ -15,12 +15,13 @@ import java.io.InputStream;
 public final class Binaries {
 
     private static final String[] BINARIES = {
-            "debugfs", "mke2fs", "brotli", "lz4", "payload-dumper-go",
+            "debugfs", "mke2fs", "brotli", "lz4", "dump.erofs", "fsck.erofs", "payload-dumper-go",
     };
 
     private static final String[] LIBS = {
             "libblkid.so", "libuuid.so", "libandroid-posix-semaphore.so",
             "libbrotlienc.so", "libbrotlidec.so", "libbrotlicommon.so",
+            "liblz4.so", "libz.so.1", "libzstd.so.1", "libxxhash.so.0",
     };
 
     private Binaries() {}
@@ -36,6 +37,7 @@ public final class Binaries {
                 new File(dir, "mke2fs"),
                 new File(dir, "brotli"),
                 new File(dir, "lz4"),
+                new File(dir, "dump.erofs"),
                 new File(dir, "payload-dumper-go"),
                 libDir);
 
