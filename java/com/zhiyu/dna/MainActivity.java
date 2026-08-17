@@ -490,25 +490,24 @@ public class MainActivity extends Activity {
         return tv;
     }
 
-    private LinearLayout chipsRow(String[] items) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER);
+    private View chipsRow(String[] items) {
+        // 流式布局: 标签自动换行, 不再散乱
+        com.zhiyu.dna.ui.FlowLayout row = new com.zhiyu.dna.ui.FlowLayout(this);
+        row.setGaps(8, 8);
+        row.setPadding(0, 0, 0, 0);
         row.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         for (String it : items) {
             TextView chip = new TextView(this);
             chip.setText(it);
-            chip.setTextColor(0xFF169AFF);
-            chip.setTextSize(12);
+            chip.setTextColor(0xFF007FFF);
+            chip.setTextSize(13);
             chip.setGravity(Gravity.CENTER);
-            chip.setPadding((int) dp(12), (int) dp(6), (int) dp(12), (int) dp(6));
-            chip.setBackground(roundedRect(0x22FFFFFF, 0x66169AFF, dp(16)));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            lp.rightMargin = (int) dp(8);
-            lp.bottomMargin = (int) dp(8);
-            row.addView(chip, lp);
+            chip.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            chip.setPadding((int) dp(14), (int) dp(7), (int) dp(14), (int) dp(7));
+            chip.setBackground(roundedRect(0xFFEAF3FE, 0xFF7FBCFF, dp(18)));
+            row.addView(chip, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         }
         return row;
     }
@@ -517,7 +516,7 @@ public class MainActivity extends Activity {
         android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
         gd.setColor(fill);
         gd.setCornerRadius(radius);
-        gd.setStroke((int) dp(1), stroke);
+        gd.setStroke((int) dp(1.2f), stroke);
         return gd;
     }
 
