@@ -322,7 +322,7 @@ public class GlassSegmented extends LinearLayout {
 
         // 胶囊: 蓝青渐变(参考是纯蓝, 我们保留一点渐变更有质感)
         pillPaint.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                new int[]{0xFF4FB6FF, 0xFF169AFF, 0xFF0F7CE8},
+                new int[]{0xFF4FB6FF, 0xFF007FFF, 0xFF0F7CE8},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawRoundRect(rect, radius, radius, pillPaint);
 

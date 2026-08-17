@@ -44,7 +44,7 @@ public class GlassCard extends FrameLayout {
         strokePaint.setStrokeWidth(dp(1.1f));
         strokePaint.setColor(0xD9FFFFFF);
         cardPaint.setStyle(Paint.Style.FILL);
-        cardPaint.setColor(0x8CFFFFFF); // 半透明白(当无背景位图时的兜底)
+        cardPaint.setColor(0xFFFCFCFC); // 白卡片
         shadowPaint.setStyle(Paint.Style.FILL);
         shadowPaint.setColor(0x1A000000);
         highlightPaint.setStyle(Paint.Style.FILL);
@@ -93,66 +93,38 @@ public class GlassCard extends FrameLayout {
         path.reset();
         path.addRoundRect(rect, radius, radius, Path.Direction.CW);
 
-        // 1) 折射: 采样背景位图
-        Bitmap cache = scene != null ? scene.getCache() : null;
-        if (cache != null) {
-            int[] loc = new int[2];
-            getLocationInWindow(loc);
-            int[] sceneLoc = new int[2];
-            scene.getLocationInWindow(sceneLoc);
-            int dx = loc[0] - sceneLoc[0];
-            int dy = loc[1] - sceneLoc[1];
-            if (dx < 0) dx = 0;
-            if (dy < 0) dy = 0;
-            float scale = cache.getWidth() / (float) Math.max(1, scene.getWidth());
-            float srcL = dx * scale, srcT = dy * scale;
-            float srcR = srcL + w * scale, srcB = srcT + h * scale;
-            if (srcR > cache.getWidth()) srcR = cache.getWidth();
-            if (srcB > cache.getHeight()) srcB = cache.getHeight();
-
-            // 玻璃内放大(折射厚度感) + 轻微偏移制造内阴影
-            float cx = rect.centerX(), cy = rect.centerY();
-            float halfW = rect.width() / 2f, halfH = rect.height() / 2f;
-            bgRect.set(cx - halfW * refraction, cy - halfH * refraction,
-                    cx + halfW * refraction, cy + halfH * refraction);
-
-            canvas.save();
-            canvas.clipPath(path);
-            canvas.drawBitmap(cache, new android.graphics.Rect((int) srcL, (int) srcT,
-                            (int) srcR, (int) srcB), bgRect, bgPaint);
-            // 玻璃罩白
-            canvas.drawRect(rect, cardPaint);
-            // 顶部高光
-            canvas.drawRect(rect.left, rect.top, rect.right, rect.top + h * 0.5f, highlightPaint);
-            // 底部轻微变暗(折射边缘)
-            canvas.restore();
-        } else {
-            // 无背景时: 纯玻璃质感兜底
-            cardPaint.setColor(0xAFFFFFFF);
-            canvas.drawPath(path, cardPaint);
-            canvas.save();
-            canvas.clipPath(path);
-            canvas.drawRect(rect.left, rect.top, rect.right, rect.top + h * 0.5f, highlightPaint);
-            canvas.restore();
-        }
-
-        // 2) 阴影(向下偏移)
+        // 视频1风格: 纯白不透明卡片 + 柔和阴影 + 淡灰描边
+        // 1) 阴影(向下偏移)
         canvas.save();
-        canvas.translate(0, dp(7));
+        canvas.translate(0, dp(5));
         Path shadow = new Path();
         shadow.addRoundRect(rect, radius, radius, Path.Direction.CW);
+        shadowPaint.setColor(0x14000000);
         canvas.drawPath(shadow, shadowPaint);
         canvas.restore();
 
-        // 3) 上缘镜面高光弧
+        // 2) 纯白填充 #FCFCFC
+        cardPaint.setColor(0xFFFCFCFC);
+        canvas.drawPath(path, cardPaint);
+
+        // 3) 顶部镜面高光(JS 玻璃原理: 上缘亮线 + 淡渐变)
         canvas.save();
         canvas.clipPath(path);
-        RectF arcRect = new RectF(rect.left + dp(2), rect.top - dp(6), rect.right - dp(2), rect.top + h * 0.28f);
-        canvas.drawRoundRect(arcRect, radius, radius, specularPaint);
+        highlightPaint.setShader(new LinearGradient(0, rect.top, 0, rect.top + h * 0.4f,
+                new int[]{0x2EFFFFFF, 0x0AFFFFFF, 0x00FFFFFF},
+                new float[]{0f, 0.3f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(rect, highlightPaint);
+        Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
+        edge.setStrokeWidth(dp(1.2f));
+        edge.setColor(0x66FFFFFF);
+        RectF topEdge = new RectF(rect.left + radius * 0.4f, rect.top + dp(2.5f),
+                rect.right - radius * 0.4f, rect.top + dp(4));
+        canvas.drawRoundRect(topEdge, dp(2), dp(2), edge);
         canvas.restore();
 
-        // 4) 内描边
-        strokePaint.setColor(0xD9FFFFFF);
+        // 4) 淡灰描边(视频1卡片边线)
+        strokePaint.setColor(0x1AE0E6EC);
+        strokePaint.setStrokeWidth(dp(1));
         canvas.drawPath(path, strokePaint);
     }
 }

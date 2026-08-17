@@ -48,7 +48,7 @@ public class GlassButton extends FrameLayout {
         GradientDrawable gd = new GradientDrawable();
         gd.setCornerRadius(26 * density);
         if (style == STYLE_PRIMARY) {
-            gd.setColors(new int[]{0xFF64C6FF, 0xFF169AFF, 0xFF1273E8});
+            gd.setColors(new int[]{0xFF55A8FF, 0xFF007FFF, 0xFF0068D8});
             gd.setOrientation(GradientDrawable.Orientation.TL_BR);
             tv.setTextColor(Color.WHITE);
             tv.setShadowLayer(6 * density, 0, 2 * density, 0x55000000);

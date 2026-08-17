@@ -16,13 +16,9 @@ import java.util.Random;
  */
 public class AnimatedBackground extends View {
 
-    private static final int[] BG_COLORS = {0xFFE8EEF7, 0xFFDCE7F5, 0xFFE4ECFA, 0xFFF0EEFB};
-    private static final int[][] BLOB_COLORS = {
-            {0x55169AFF, 0x00169AFF},
-            {0x447B5CFF, 0x007B5CFF},
-            {0x44FF9A9E, 0x00FF9A9E},
-            {0x4059C5FF, 0x0059C5FF},
-    };
+    // 视频1精确配色: 浅灰蓝垂直渐变(无彩色光斑)
+    private static final int[] BG_COLORS = {0xFFD1D7DE, 0xFFE1E7ED, 0xFFECF2F7};
+    private static final int[][] BLOB_COLORS = {};   // 不画光斑
 
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint[] blobPaints = new Paint[BLOB_COLORS.length];

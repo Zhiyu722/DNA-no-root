@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
         float density = getResources().getDisplayMetrics().density;
         scene = new GlassScene(this);
         FrameLayout root = scene;
-        root.setBackgroundColor(0xFFE8EEF7);
+        root.setBackgroundColor(0xFFD1D7DE);
         scene.getBackgroundView().setFrameCallback(scene::requestCapture);
 
         // ===== 顶部区域(品牌标题 + 玻璃顶栏, 整体随滑动视差移动) =====
@@ -219,7 +219,7 @@ public class MainActivity extends Activity {
         c1.addView(browseBtn);
         typeLabel = new TextView(this);
         typeLabel.setText("未选择文件");
-        typeLabel.setTextColor(0xFF696E73);
+        typeLabel.setTextColor(0xFF6B7280);
         typeLabel.setTextSize(13);
         c1.addView(typeLabel);
         col.addView(card1, cardLp());
@@ -245,7 +245,7 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         TextView tv = new TextView(this);
         tv.setText("自动解包 payload/super 分区(耗时更长)");
-        tv.setTextColor(0xFF1C242C);
+        tv.setTextColor(0xFF14191C);
         tv.setTextSize(15);
         row.addView(tv, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         autoPartsSw = new GlassSwitch(this);
@@ -330,13 +330,13 @@ public class MainActivity extends Activity {
         LinearLayout c1 = cardColumn(card1);
         TextView title = new TextView(this);
         title.setText("DNA 固件解包助手");
-        title.setTextColor(0xFF1C242C);
+        title.setTextColor(0xFF14191C);
         title.setTextSize(20);
         title.setGravity(Gravity.CENTER);
         c1.addView(title);
         TextView ver = new TextView(this);
         ver.setText("版本 1.0.0  ·  包名 com.zhiyu.dna");
-        ver.setTextColor(0xFF696E73);
+        ver.setTextColor(0xFF6B7280);
         ver.setTextSize(12);
         ver.setGravity(Gravity.CENTER);
         c1.addView(ver);
@@ -451,7 +451,7 @@ public class MainActivity extends Activity {
         row.addView(bar, new LinearLayout.LayoutParams((int) dp(7), (int) dp(26)));
         TextView tv = new TextView(this);
         tv.setText(s);
-        tv.setTextColor(0xFF1C242C);
+        tv.setTextColor(0xFF14191C);
         tv.setTextSize(23);
         tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         tv.setShadowLayer(dp(3), 0, dp(1), 0x33000000);
@@ -467,7 +467,7 @@ public class MainActivity extends Activity {
     private TextView fieldLabel(String s) {
         TextView tv = new TextView(this);
         tv.setText(s);
-        tv.setTextColor(0xFF696E73);
+        tv.setTextColor(0xFF6B7280);
         tv.setTextSize(13);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -480,7 +480,7 @@ public class MainActivity extends Activity {
     private TextView infoLine(String s) {
         TextView tv = new TextView(this);
         tv.setText(s);
-        tv.setTextColor(0xFF3A4149);
+        tv.setTextColor(0xFF2B3036);
         tv.setTextSize(14);
         tv.setLineSpacing(dp(2), 1.15f);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -523,7 +523,7 @@ public class MainActivity extends Activity {
 
     private EditText glassEdit() {
         EditText et = new EditText(this);
-        et.setTextColor(0xFF1C242C);
+        et.setTextColor(0xFF14191C);
         et.setHintTextColor(0xFFA0A6AD);
         et.setTextSize(14);
         et.setSingleLine(true);
