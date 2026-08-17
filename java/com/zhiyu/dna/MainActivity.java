@@ -86,6 +86,7 @@ public class MainActivity extends Activity {
     // ================= UI 组装 =================
 
     private GlassScene scene;
+    private LinearLayout topArea;
 
     private void buildUi() {
         float density = getResources().getDisplayMetrics().density;
@@ -94,14 +95,43 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(0xFFE8EEF7);
         scene.getBackgroundView().setFrameCallback(scene::requestCapture);
 
-        // 顶部 tab: 解包 | 打包 | 关于
+        // ===== 顶部区域(品牌标题 + 玻璃顶栏, 整体随滑动视差移动) =====
+        LinearLayout topArea = new LinearLayout(this);
+        topArea.setOrientation(LinearLayout.VERTICAL);
+        topArea.setGravity(Gravity.CENTER_HORIZONTAL);
+        topArea.setPadding((int) dp(18), 0, (int) dp(18), 0);
+
+        // 品牌标题: DNA(渐变) + 副标题
+        LinearLayout brandRow = new LinearLayout(this);
+        brandRow.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
+        TextView brand = new TextView(this);
+        brand.setText("DNA");
+        brand.setTextSize(21);
+        brand.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        brand.setTextColor(0xFF169AFF);
+        brand.setShadowLayer(dp(8), 0, dp(2), 0x55169AFF);
+        brandRow.addView(brand);
+        TextView brandSub = new TextView(this);
+        brandSub.setText("  固件解包助手");
+        brandSub.setTextSize(13);
+        brandSub.setTextColor(0xFF5A6B7A);
+        brandRow.addView(brandSub);
+        topArea.addView(brandRow, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, (int) dp(30)));
+
+        // 玻璃顶栏: 宽度自适应(左右留 18dp)
         topTabs = new GlassSegmented(this, new String[]{"解包", "打包", "关于"});
         topTabs.setOnSelectedListener(index -> pager.setCurrentPage(index, true));
         topTabs.attachScene(scene);
-        FrameLayout.LayoutParams tabLp = new FrameLayout.LayoutParams(
-                (int) (260 * density), (int) (44 * density), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        tabLp.topMargin = (int) (dp(14) + statusBarHeight());
-        root.addView(topTabs, tabLp);
+        topArea.addView(topTabs, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(48)));
+        this.topArea = topArea;
+
+        FrameLayout.LayoutParams topLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP);
+        topLp.topMargin = (int) (dp(8) + statusBarHeight());
+        root.addView(topArea, topLp);
 
         // 分页器
         pager = new GlassPager(this);
@@ -110,15 +140,16 @@ public class MainActivity extends Activity {
         pager.addPage(buildAboutPage());
         FrameLayout.LayoutParams pagerLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-        pagerLp.topMargin = (int) (dp(74) + statusBarHeight());
-        pagerLp.bottomMargin = (int) dp(36);
+        pagerLp.topMargin = (int) (dp(96) + statusBarHeight());
+        pagerLp.bottomMargin = (int) dp(40);
         root.addView(pager, pagerLp);
 
         pager.setOnPageChangedListener((index, pos) -> {
             boolean dragging = pager.isDragging();
             topTabs.setPosition(pos, dragging);   // 拖动 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
-            topTabs.setTranslationX(-pos * dp(26)); // 顶栏视差联动, 滑动更有玻璃流动感
+            topTabs.setTranslationX(-pos * dp(12));  // 顶栏轻微视差(有流动感但不破坏布局)
+            if (topArea != null) topArea.setTranslationX(-pos * dp(6)); // 品牌区随动
         });
 
         // 底部指示器
@@ -397,18 +428,32 @@ public class MainActivity extends Activity {
         return lp;
     }
 
-    private TextView sectionTitle(String s) {
+    private View sectionTitle(String s) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        // 渐变强调条
+        View bar = new View(this);
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF64C6FF, 0xFF169AFF, 0xFF9C6BFF});
+        gd.setCornerRadius(dp(4));
+        bar.setBackground(gd);
+        bar.setElevation(dp(2));
+        row.addView(bar, new LinearLayout.LayoutParams((int) dp(7), (int) dp(26)));
         TextView tv = new TextView(this);
         tv.setText(s);
         tv.setTextColor(0xFF1C242C);
-        tv.setTextSize(24);
+        tv.setTextSize(23);
         tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         tv.setShadowLayer(dp(3), 0, dp(1), 0x33000000);
+        tv.setPadding((int) dp(10), 0, 0, 0);
+        row.addView(tv);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = (int) dp(14);
-        tv.setLayoutParams(lp);
-        return tv;
+        row.setLayoutParams(lp);
+        return row;
     }
 
     private TextView fieldLabel(String s) {
