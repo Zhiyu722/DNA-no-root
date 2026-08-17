@@ -138,7 +138,9 @@ public class GlassPager extends ViewGroup {
         for (int i = 0; i < pages.size(); i++) {
             View v = pages.get(i);
             float offset = (float) (posX - i * pw);
-            v.setTranslationX(offset * (float) PARALLAX);
+            // 视差渐变: 当前页 1:1 跟手, 视差在半个页宽内从 0 渐增到最大(避免滞后感/跳变)
+            float ramp = Math.min(1f, Math.abs(offset) / (pw * 0.5f));
+            v.setTranslationX(offset * (float) PARALLAX * ramp);
             float scale = 1f - (1f - NEIGHBOR_SCALE) * Math.min(1f, Math.abs(offset) / pw);
             v.setScaleX(scale);
             v.setScaleY(scale);

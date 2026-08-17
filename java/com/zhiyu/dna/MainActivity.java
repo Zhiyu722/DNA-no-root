@@ -116,6 +116,7 @@ public class MainActivity extends Activity {
         pager.setOnPageChangedListener((index, pos) -> {
             topTabs.setPosition(pos);      // 胶囊弹簧跟手
             dots.setPosition(pos);         // 指示点连续
+            topTabs.setTranslationX(-pos * dp(16)); // 顶栏轻微视差, 滑动时有联动感
         });
 
         // 底部指示器
@@ -132,6 +133,21 @@ public class MainActivity extends Activity {
         checkStoragePermission();
         // 初始化引擎
         ensureEngine(null);
+        // 自检(输出到 logcat, 便于验证): /sdcard 可写性
+        worker.execute(() -> {
+            try {
+                File out = Binaries.defaultOutDir(this);
+                out.mkdirs();
+                File probe = new File(out, ".probe");
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(probe);
+                fos.write(1);
+                fos.close();
+                probe.delete();
+                android.util.Log.i("DNA", "SDCARD_OK " + out.getAbsolutePath());
+            } catch (Exception e) {
+                android.util.Log.e("DNA", "SDCARD_FAIL " + e.getMessage());
+            }
+        });
     }
 
     private float statusBarHeight() {
@@ -279,6 +295,9 @@ public class MainActivity extends Activity {
         c1.addView(title);
         TextView ver = new TextView(this);
         ver.setText("版本 1.0.0  ·  包名 com.zhiyu.dna");
+        ver.setTextColor(0xFF696E73);
+        ver.setTextSize(12);
+        ver.setGravity(Gravity.CENTER);
         c1.addView(ver);
         TextView author = new TextView(this);
         author.setText("作者: Zhiyu · cuoxianxu");
@@ -287,10 +306,6 @@ public class MainActivity extends Activity {
         author.setGravity(Gravity.CENTER);
         author.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         c1.addView(author);
-        ver.setTextColor(0xFF696E73);
-        ver.setTextSize(12);
-        ver.setGravity(Gravity.CENTER);
-        c1.addView(ver);
         engineStatus = new TextView(this);
         engineStatus.setText("引擎: 初始化中 ...");
         engineStatus.setTextColor(0xFF169AFF);
