@@ -74,7 +74,7 @@ public final class DnaEngine {
             case BOOT:
             case VENDOR_BOOT: {
                 File dir = new File(outRoot, baseName(input));
-                BootImage.unpack(input, dir, p);
+                BootImage.unpack(input, dir, tools, p);
                 break;
             }
             case ZIP: {

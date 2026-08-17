@@ -127,7 +127,7 @@ public final class BootImage {
     /**
      * 解包 boot 镜像: 输出 kernel / ramdisk(解 gzip+cpio 到 ramdisk/ 目录) / second / dtb / dtbo + boot.json 配置。
      */
-    public static void unpack(File img, File outDir, Progress p) throws IOException {
+    public static void unpack(File img, File outDir, ToolPaths tools, Progress p) throws IOException {
         if (!outDir.exists() && !outDir.mkdirs()) throw new IOException("无法创建输出目录");
         BootParts parts = parse(img);
         BootConfig cfg = parts.cfg;
@@ -149,10 +149,22 @@ public final class BootImage {
                     ramdiskDir.mkdirs();
                     Cpio.extract(cpio, ramdiskDir, p);
                     Io.writeFile(new File(outDir, "ramdisk.cpio.gz"), blob);
+                } else if (Lz4Tool.isLz4(blob)) {
+                    // lz4 压缩 ramdisk(新设备常见): 用内置 lz4 解压
+                    File lz4Tmp = new File(outDir, "ramdisk.lz4");
+                    Io.writeFile(lz4Tmp, blob);
+                    File cpioOut = new File(outDir, "ramdisk.cpio");
+                    Lz4Tool.decompress(lz4Tmp, cpioOut, tools, p);
+                    p.log("ramdisk: lz4 → cpio, 解包中...");
+                    ramdiskDir.mkdirs();
+                    byte[] cpio = java.nio.file.Files.readAllBytes(cpioOut.toPath());
+                    Cpio.extract(cpio, ramdiskDir, p);
+                    lz4Tmp.delete();
+                    cpioOut.delete();
                 } else {
-                    // 其它压缩(如 lz4)—— 保留原始 blob, 提示用户
-                    p.log("ramdisk: 非 gzip 压缩(可能是 lz4), 保留原始文件");
-                    Io.writeFile(new File(outDir, "ramdisk.cpio.lz4"), blob);
+                    // 其它压缩 —— 保留原始 blob, 提示用户
+                    p.log("ramdisk: 未知压缩格式, 保留原始文件");
+                    Io.writeFile(new File(outDir, "ramdisk.cpio.raw"), blob);
                 }
             }
         }
@@ -201,9 +213,13 @@ public final class BootImage {
         byte[] ramdisk;
         File rdDir = new File(bootDir, "ramdisk");
         File rdGz = new File(bootDir, "ramdisk.cpio.gz");
+        File rdLz4 = new File(bootDir, "ramdisk.cpio.lz4");
         if (rdGz.exists()) {
             ramdisk = java.nio.file.Files.readAllBytes(rdGz.toPath());
             p.log("使用已有 ramdisk.cpio.gz");
+        } else if (rdLz4.exists()) {
+            ramdisk = java.nio.file.Files.readAllBytes(rdLz4.toPath());
+            p.log("使用已有 ramdisk.cpio.lz4");
         } else if (rdDir.exists() && rdDir.isDirectory()) {
             p.log("打包 ramdisk 目录 → cpio → gzip ...");
             byte[] cpio = Cpio.pack(rdDir, p);

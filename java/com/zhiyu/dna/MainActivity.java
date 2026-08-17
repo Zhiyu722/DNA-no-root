@@ -781,16 +781,42 @@ public class MainActivity extends Activity {
     }
 
     private void updateTypeLabel(String path) {
+        if (path.startsWith("content://")) {
+            // SAF 文件: 直接读文件头识别类型, 不显示"文件不存在"
+            try (java.io.InputStream is = getContentResolver().openInputStream(Uri.parse(path))) {
+                byte[] head = new byte[4096];
+                int n = is.read(head);
+                com.zhiyu.dna.engine.ImgType.Type t = detectFromBytes(head, n);
+                typeLabel.setText("已选择: " + com.zhiyu.dna.engine.ImgType.label(t)
+                        + " (SAF 文件, 解包时自动复制)");
+            } catch (Exception e) {
+                typeLabel.setText("已选择 SAF 文件, 解包时自动复制处理");
+            }
+            typeLabel.setTextColor(0xFF007FFF);
+            return;
+        }
         File f = new File(path);
         if (!f.exists()) {
-            typeLabel.setText("文件不存在");
-            typeLabel.setTextColor(0xFFF44336);
+            typeLabel.setText("路径无效: 请选择文件或直接输入 /sdcard/ 开头的路径");
+            typeLabel.setTextColor(0xFFE65100);
             return;
         }
         com.zhiyu.dna.engine.ImgType.Type t = com.zhiyu.dna.engine.ImgType.detect(f);
         typeLabel.setText("识别类型: " + com.zhiyu.dna.engine.ImgType.label(t)
                 + "  ·  " + (f.length() / 1048576) + " MB");
-        typeLabel.setTextColor(0xFF169AFF);
+        typeLabel.setTextColor(0xFF007FFF);
+    }
+
+    /** 从字节流头识别镜像类型(SAF 文件用) */
+    private com.zhiyu.dna.engine.ImgType.Type detectFromBytes(byte[] b, int n) {
+        if (n >= 4 && (b[0] & 0xFF) == 0x50 && (b[1] & 0xFF) == 0x4B) return com.zhiyu.dna.engine.ImgType.Type.ZIP;
+        if (n >= 4 && (b[0] & 0xFF) == 0x3A && (b[1] & 0xFF) == 0xFF) return com.zhiyu.dna.engine.ImgType.Type.SPARSE;
+        if (n >= 4 && (b[0] & 0xFF) == 0x43 && (b[1] & 0xFF) == 0x72) return com.zhiyu.dna.engine.ImgType.Type.PAYLOAD;
+        if (n >= 8 && (b[0] & 0xFF) == 0x41 && (b[1] & 0xFF) == 0x4E) return com.zhiyu.dna.engine.ImgType.Type.BOOT;
+        if (n >= 4 && (b[0] & 0xFF) == 0x67 && (b[1] & 0xFF) == 0x44) return com.zhiyu.dna.engine.ImgType.Type.SUPER;
+        if (n >= 1082 && (b[1080] & 0xFF) == 0x53 && (b[1081] & 0xFF) == (byte) 0xEF) return com.zhiyu.dna.engine.ImgType.Type.EXT;
+        if (n >= 2 && (b[0] & 0xFF) == 0x1F && (b[1] & 0xFF) == 0x8B) return com.zhiyu.dna.engine.ImgType.Type.GZIP;
+        return com.zhiyu.dna.engine.ImgType.Type.UNKNOWN;
     }
 
     // ================= 引擎 =================

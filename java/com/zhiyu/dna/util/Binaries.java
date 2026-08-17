@@ -15,7 +15,7 @@ import java.io.InputStream;
 public final class Binaries {
 
     private static final String[] BINARIES = {
-            "debugfs", "mke2fs", "brotli", "payload-dumper-go",
+            "debugfs", "mke2fs", "brotli", "lz4", "payload-dumper-go",
     };
 
     private static final String[] LIBS = {
@@ -35,6 +35,7 @@ public final class Binaries {
                 new File(dir, "debugfs"),
                 new File(dir, "mke2fs"),
                 new File(dir, "brotli"),
+                new File(dir, "lz4"),
                 new File(dir, "payload-dumper-go"),
                 libDir);
 
