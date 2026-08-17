@@ -165,6 +165,8 @@ public final class BootImage {
                     ramdiskDir.mkdirs();
                     byte[] cpio = java.nio.file.Files.readAllBytes(cpioOut.toPath());
                     Cpio.extract(cpio, ramdiskDir, p);
+                    // 保留原始 lz4 压缩数据, 重新打包时直接用(大小/格式与原版一致)
+                    Io.writeFile(new File(outDir, "ramdisk.cpio.lz4"), blob);
                     lz4Tmp.delete();
                     cpioOut.delete();
                 } else {
