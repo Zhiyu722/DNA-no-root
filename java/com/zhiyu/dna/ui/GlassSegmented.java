@@ -286,11 +286,11 @@ public class GlassSegmented extends LinearLayout {
         // ===== 玻璃面板(保留玻璃质感) =====
         RectF panel = new RectF(dp(2), dp(2), w - dp(2), h - dp(2));
         GlassRenderer.drawGlass(canvas, scene, this, panel, radius, shadowPaint);
-        // 渐变描边(纯白液态光晕)
+        // 渐变描边(蓝青液态光晕)
         Path border = new Path();
         border.addRoundRect(panel, radius, radius, Path.Direction.CW);
         borderPaint.setShader(new LinearGradient(0, 0, w, h,
-                new int[]{0x88FFFFFF, 0xBFFFFFFF, 0x66FFFFFF, 0x88FFFFFF},
+                new int[]{0x77FFFFFF, 0xAA99FFFF, 0x88FFB3FF, 0x77FFFFFF},
                 new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawPath(border, borderPaint);
 
@@ -336,11 +336,11 @@ public class GlassSegmented extends LinearLayout {
         canvas.drawRect(rect.left, rect.top, rect.right, rect.top + h * 0.5f, pillGlossPaint);
         canvas.restore();
 
-        // 柔和阴影(中性)
+        // 柔和蓝色光晕
         canvas.save();
         canvas.translate(0, dp(2));
         Paint sh = new Paint(Paint.ANTI_ALIAS_FLAG);
-        sh.setColor(0x33000000);
+        sh.setColor(0x3D169AFF);
         Path shadowPath = new Path();
         shadowPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
         canvas.drawPath(shadowPath, sh);
