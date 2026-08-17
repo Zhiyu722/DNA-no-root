@@ -237,6 +237,7 @@ public class GlassPager extends ViewGroup {
             }
             case MotionEvent.ACTION_UP: {
                 lastX = -1f;
+                dragging = false;
                 double v = velocityTracker.calculateVelocity(100);
                 int target = (int) Math.round(posX / Math.max(1, width));
                 if (Math.abs(v) > 450) {
@@ -250,6 +251,7 @@ public class GlassPager extends ViewGroup {
             }
             case MotionEvent.ACTION_CANCEL:
                 lastX = -1f;
+                dragging = false;
                 stopSpring();
                 targetX = Math.round(posX / Math.max(1, width)) * width;
                 posVel = 0;

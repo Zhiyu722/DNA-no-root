@@ -87,6 +87,7 @@ public class MainActivity extends Activity {
 
     private GlassScene scene;
     private LinearLayout topArea;
+    private float dragStartPos = -1;
 
     private void buildUi() {
         float density = getResources().getDisplayMetrics().density;
@@ -149,16 +150,21 @@ public class MainActivity extends Activity {
             topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
             if (dragging) {
-                // 拖动: 顶栏整体跟随手指(按页面宽度的 30% 移动, 强跟手感)
-                float shift = -pos * pager.getWidth() * 0.30f;
-                topTabs.setTranslationX(shift * 0.55f);
-                if (topArea != null) topArea.setTranslationX(shift);
+                // 拖动: 顶栏跟随手指 —— 相对拖动起点位移, 有界(不会飞出屏幕)
+                if (dragStartPos < 0) dragStartPos = pos;
+                float shift = -(pos - dragStartPos) * pager.getWidth() * 0.28f;
+                shift = Math.max(-170f, Math.min(170f, shift));
+                topArea.setTranslationX(shift);
+                topTabs.setTranslationX(shift * 0.5f);
             } else {
                 // 松手: 顶栏弹性归位(液态过冲)
-                topTabs.animate().translationX(0).setDuration(340)
-                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.5f)).start();
-                if (topArea != null) topArea.animate().translationX(0).setDuration(340)
-                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.3f)).start();
+                if (dragStartPos >= 0 || topArea.getTranslationX() != 0) {
+                    topArea.animate().translationX(0).setDuration(320)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+                    topTabs.animate().translationX(0).setDuration(320)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
+                }
+                dragStartPos = -1;
             }
         });
 
