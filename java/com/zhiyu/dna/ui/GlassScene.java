@@ -35,19 +35,24 @@ public class GlassScene extends FrameLayout {
 
     private void capture() {
         long now = System.currentTimeMillis();
-        if (now - lastCapture < 60) return;
+        if (now - lastCapture < 120) return;
         lastCapture = now;
-        int w = getWidth(), h = getHeight();
-        if (w <= 0 || h <= 0) return;
-        int cw = Math.max(1, w / 4), ch = Math.max(1, h / 4);
-        synchronized (lock) {
-            if (bgCache == null || bgCache.getWidth() != cw || bgCache.getHeight() != ch) {
-                if (bgCache != null) bgCache.recycle();
-                bgCache = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
+        try {
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            int cw = Math.max(1, w / 5), ch = Math.max(1, h / 5);
+            synchronized (lock) {
+                if (bgCache == null || bgCache.getWidth() != cw || bgCache.getHeight() != ch) {
+                    if (bgCache != null) bgCache.recycle();
+                    bgCache = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888);
+                }
+                Canvas c = new Canvas(bgCache);
+                c.scale(cw / (float) w, ch / (float) h);
+                bg.drawTo(c);
             }
-            Canvas c = new Canvas(bgCache);
-            c.scale(cw / (float) w, ch / (float) h);
-            bg.drawTo(c);
+        } catch (Throwable t) {
+            // 大屏/低内存设备: 捕获失败就跳过, 不崩溃
+            android.util.Log.w("DNA", "capture failed", t);
         }
     }
 

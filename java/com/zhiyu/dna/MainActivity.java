@@ -71,6 +71,20 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 全局崩溃捕获: 错误写入 /sdcard/DNA/crash_log.txt 便于排查
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try {
+                java.io.StringWriter sw = new java.io.StringWriter();
+                e.printStackTrace(new java.io.PrintWriter(sw));
+                File crash = new File(Binaries.defaultOutDir(this).getParentFile(), "crash_log.txt");
+                crash.getParentFile().mkdirs();
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(crash, true);
+                fos.write(("==== " + new java.util.Date() + " ====\n" + sw.toString() + "\n").getBytes());
+                fos.close();
+                android.util.Log.e("DNA", "CRASH", e);
+            } catch (Exception ignore) {
+            }
+        });
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setStatusBarColor(Color.TRANSPARENT);
@@ -679,9 +693,10 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 把 content:// 解析为真实路径(尽力而为); 解析不到则原样保留 uri。 */
+    /** 把 content:// 解析为真实路径(多级兜底)。 */
     private String resolvePath(Uri uri) {
         String path = null;
+        // 1) 直接查 _data
         try (android.database.Cursor c = getContentResolver().query(uri,
                 new String[]{"_data"}, null, null, null)) {
             if (c != null && c.moveToFirst()) {
@@ -690,8 +705,60 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) {
         }
+        // 2) Downloads / external storage provider 映射
+        if (path == null || !new File(path).exists()) {
+            path = resolveByAuthority(uri);
+        }
         if (path != null && new File(path).exists()) return path;
+        // 3) 显示名兜底: /sdcard/Download/<文件名>
+        String name = null;
+        try (android.database.Cursor c = getContentResolver().query(uri,
+                new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) name = c.getString(idx);
+            }
+        } catch (Exception ignored) {
+        }
+        if (name != null) {
+            File guess = new File(Environment.getExternalStorageDirectory(), "Download/" + name);
+            if (guess.exists()) return guess.getAbsolutePath();
+        }
         return uri.toString();
+    }
+
+    /** 按 provider 类型解析常见路径 */
+    private String resolveByAuthority(Uri uri) {
+        try {
+            String auth = uri.getAuthority();
+            if (auth != null && auth.contains("downloads")) {
+                String id = android.provider.DocumentsContract.getDocumentId(uri);
+                if (id != null) {
+                    Uri contentUri = android.content.ContentUris.withAppendedId(
+                            Uri.parse("content://downloads/public_downloads"), Long.parseLong(id));
+                    try (android.database.Cursor c = getContentResolver().query(contentUri,
+                            new String[]{"_data"}, null, null, null)) {
+                        if (c != null && c.moveToFirst()) {
+                            int idx = c.getColumnIndex("_data");
+                            if (idx >= 0) {
+                                String p = c.getString(idx);
+                                if (p != null && new File(p).exists()) return p;
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+            if (auth != null && auth.contains("external")) {
+                String id = android.provider.DocumentsContract.getDocumentId(uri);
+                if (id != null && id.startsWith("primary:")) {
+                    String p = Environment.getExternalStorageDirectory() + "/" + id.substring(8);
+                    if (new File(p).exists()) return p;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private String resolveTreePath(Uri treeUri) {
@@ -758,6 +825,7 @@ public class MainActivity extends Activity {
         unpackLog.setVisibility(View.VISIBLE);
         unpackLog.clear();
         final ToolPaths t = tools;
+        final String inPath = input;
         worker.execute(() -> {
             try {
                 if (t == null || !engineReady) {
@@ -765,7 +833,21 @@ public class MainActivity extends Activity {
                     tools = p;
                 }
                 final ToolPaths tt = tools;
-                DnaEngine.unpack(new File(input), new File(out), autoPartsSw.isChecked(), tt,
+                File inFile = new File(inPath);
+                // content:// 拿不到真实路径时: 复制到缓存再解包
+                if (inPath.startsWith("content://") || !inFile.exists()) {
+                    post(() -> unpackLog.append("SAF 文件无法直接定位, 复制到缓存处理..."));
+                    Uri uri = Uri.parse(inPath);
+                    File cache = new File(getCacheDir(), "input_" + System.currentTimeMillis());
+                    try (java.io.InputStream is = getContentResolver().openInputStream(uri);
+                         java.io.FileOutputStream fos = new java.io.FileOutputStream(cache)) {
+                        byte[] buf = new byte[1 << 16];
+                        int n;
+                        while ((n = is.read(buf)) > 0) fos.write(buf, 0, n);
+                    }
+                    inFile = cache;
+                }
+                DnaEngine.unpack(inFile, new File(out), autoPartsSw.isChecked(), tt,
                         uiProgress(unpackLog, "解包"));
             } catch (Exception e) {
                 post(() -> unpackLog.append("[失败] " + e.getMessage()));
