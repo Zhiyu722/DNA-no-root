@@ -215,6 +215,7 @@ public final class BootImage {
         byte[] second = readIfExists(new File(bootDir, "second"), new byte[0]);
         byte[] dtbo = readIfExists(new File(bootDir, "recovery_dtbo"), new byte[0]);
         byte[] dtb = readIfExists(new File(bootDir, "dtb"), new byte[0]);
+        byte[] signature = readIfExists(new File(bootDir, "signature"), new byte[0]);
 
         byte[] ramdisk;
         File rdDir = new File(bootDir, "ramdisk");
@@ -240,11 +241,14 @@ public final class BootImage {
         int version = cfg.version;
         if (version > 4) version = 4;
         if (version < 0) version = 0;
-        // 按实际部件自动调整版本: 有 dtb 至少 v2, 有 dtbo 至少 v1; 声称的高版本缺部件则降级
-        if (version >= 2 && dtb.length == 0) version = 1;
-        if (version >= 1 && dtbo.length == 0 && dtb.length == 0) version = 0;
+        // 按实际部件调整版本: 只有 v1/v2 需要 dtbo/dtb; v3/v4 无此字段, 不降级
+        if (version >= 1 && version <= 2) {
+            if (version == 2 && dtb.length == 0) version = 1;
+            if (version == 1 && dtbo.length == 0) version = 0;
+        }
         if (version < 2 && dtb.length > 0) version = 2;
         if (version < 1 && dtbo.length > 0) version = 1;
+        if (version < 4 && signature.length > 0) version = 4;
 
         byte[] hdr = new byte[page];
         System.arraycopy(MAGIC, 0, hdr, 0, 8);
@@ -278,6 +282,9 @@ public final class BootImage {
             Io.putU32(hdr, 20, version == 4 ? 1584 : 1580);
             Io.putU32(hdr, 40, version);
             putStr(hdr, 48, 512, cfg.cmdline);
+            if (version >= 4) {
+                Io.putU32(hdr, 1580, signature.length);   // v4: signature_size 在 header 末尾
+            }
         }
 
         try (FileOutputStream fos = new FileOutputStream(outImg)) {
@@ -287,6 +294,7 @@ public final class BootImage {
             writeAligned(fos, second, page);
             if (version >= 1 && dtbo.length > 0) writeAligned(fos, dtbo, page);
             if (version >= 2 && dtb.length > 0) writeAligned(fos, dtb, page);
+            if (version >= 4 && signature.length > 0) writeAligned(fos, signature, page);
         }
         p.log("已生成 " + outImg.getName() + " (boot v" + version + ", " + outImg.length() / 1024 + " KB)");
     }
