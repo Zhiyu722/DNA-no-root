@@ -83,6 +83,21 @@ public class GlassPager extends ViewGroup {
         return dragStartPosX;
     }
 
+    /** 外部控制(顶栏拖动联动): 直接设置页面位置 */
+    public void setPositionFraction(float pos, boolean animated) {
+        double target = pos * width;
+        if (animated) {
+            targetX = target;
+            startSpring();
+        } else {
+            stopSpring();
+            posX = target;
+            posVel = 0;
+            applyScroll();
+            notifyChanged();
+        }
+    }
+
     public void setCurrentPage(int index, boolean animate) {
         if (index < 0 || index >= pages.size()) return;
         if (!animate) {

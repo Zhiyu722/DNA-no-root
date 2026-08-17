@@ -124,6 +124,7 @@ public class MainActivity extends Activity {
         // 玻璃顶栏: 宽度自适应(左右留 18dp)
         topTabs = new GlassSegmented(this, new String[]{"解包", "打包", "关于"});
         topTabs.setOnSelectedListener(index -> pager.setCurrentPage(index, true));
+        topTabs.setOnDragListener(pos -> pager.setPositionFraction(pos, false));
         topTabs.attachScene(scene);
         topArea.addView(topTabs, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(48)));

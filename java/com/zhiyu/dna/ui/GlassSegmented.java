@@ -11,6 +11,7 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -26,6 +27,11 @@ public class GlassSegmented extends LinearLayout {
         void onSelected(int index);
     }
 
+    /** 拖动回调: 拖动中每帧上报小数位置(段单位), 用于联动分页器 */
+    public interface OnDragListener {
+        void onDrag(float pos);
+    }
+
     private final String[] items;
     private int selected = 0;
     private float pillPos = 0f;
@@ -37,10 +43,14 @@ public class GlassSegmented extends LinearLayout {
     private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private OnSelectedListener listener;
+    private OnDragListener dragListener;
     private ValueAnimator springAnim;
     private long lastStep;
     private long lastLog2;
     private GlassScene scene;
+    private boolean fingerDragging;
+    private float downX;
+    private float dragStartPill;
 
     public GlassSegmented(Context context, String[] items) {
         super(context);
@@ -77,6 +87,58 @@ public class GlassSegmented extends LinearLayout {
 
     public void setOnSelectedListener(OnSelectedListener l) {
         this.listener = l;
+    }
+
+    public void setOnDragListener(OnDragListener l) {
+        this.dragListener = l;
+    }
+
+    // ================= 顶栏直接拖动 =================
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                if (springAnim.isRunning()) springAnim.cancel();
+                fingerDragging = true;
+                downX = ev.getX();
+                dragStartPill = pillPos;
+                return true;
+            case MotionEvent.ACTION_MOVE: {
+                if (!fingerDragging) return true;
+                float seg = getSegmentWidth();
+                float np = dragStartPill + (ev.getX() - downX) / seg;
+                np = Math.max(0f, Math.min(np, items.length - 1f));
+                pillPos = np;
+                pillVel = 0;
+                targetPos = np;
+                int nearest = Math.round(np);
+                if (nearest != selected) {
+                    selected = nearest;
+                    updateTextColors();
+                }
+                invalidate();
+                if (dragListener != null) dragListener.onDrag(np);
+                return true;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+                if (!fingerDragging) return true;
+                fingerDragging = false;
+                int nearest = Math.round(pillPos);
+                nearest = Math.max(0, Math.min(nearest, items.length - 1));
+                boolean changed = nearest != selected;
+                selected = nearest;
+                updateTextColors();
+                targetPos = nearest;
+                if (!springAnim.isRunning()) {
+                    lastStep = System.nanoTime();
+                    springAnim.start();
+                }
+                if (changed && listener != null) listener.onSelected(nearest);
+                return true;
+            }
+        }
+        return true;
     }
 
     public void attachScene(GlassScene s) {
@@ -201,9 +263,20 @@ public class GlassSegmented extends LinearLayout {
         float h = getHeight();
         float radius = h / 2f;
 
-        // ===== 参考设计: 无外框面板, 纯色胶囊直接贴在文字上滑动 =====
+        // ===== 玻璃面板(保留玻璃质感) =====
+        RectF panel = new RectF(dp(2), dp(2), w - dp(2), h - dp(2));
+        GlassRenderer.drawGlass(canvas, scene, this, panel, radius, shadowPaint);
+        // 渐变描边(液态光晕)
+        Path border = new Path();
+        border.addRoundRect(panel, radius, radius, Path.Direction.CW);
+        borderPaint.setShader(new LinearGradient(0, 0, w, h,
+                new int[]{0x55FFFFFF, 0x9999FFFF, 0x66FFB3FF, 0x55FFFFFF},
+                new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawPath(border, borderPaint);
+
+        // ===== 视频12式滑动胶囊: 文字大小, 在段中心间连续滑动 =====
         float seg = w / items.length;
-        float capsuleW = dp(88);   // 胶囊宽度: 刚好包住两个字的文字
+        float capsuleW = dp(92);   // 胶囊宽度: 刚好包住文字(比整段窄得多)
         float cy = h / 2f;
         float centerX = (pillPos + 0.5f) * seg;   // 在段中心间连续滑动
         RectF rect = new RectF(centerX - capsuleW / 2f, dp(4),
