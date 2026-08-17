@@ -151,24 +151,11 @@ public class MainActivity extends Activity {
             topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
             if (dragging) {
-                // 拖动: 胶囊按内容位置比例实时跟踪(instant 无延迟, 无弹簧冻结)
-                // 手指拖 720px = 一整页 → 胶囊走一段; 指哪跟哪, 不会超前也不会滞后
+                // 拖动: 胶囊按内容位置比例实时跟踪(顶栏整体固定, 只有胶囊滑动, 干净不晃)
                 topTabs.setPosition(pos, true);
-                // 顶栏轻微视差(始终可见)
-                if (dragStartPos < 0) dragStartPos = pos;
-                float shift = -(pos - dragStartPos) * pager.getWidth() * 0.08f;
-                shift = Math.max(-28f, Math.min(28f, shift));
-                topArea.setTranslationX(shift);
-                topTabs.setTranslationX(shift);
             } else {
-                // 松手: 顶栏弹性归位(液态过冲)
-                if (dragStartPos >= 0 || topArea.getTranslationX() != 0) {
-                    topArea.animate().translationX(0).setDuration(320)
-                            .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
-                    topTabs.animate().translationX(0).setDuration(320)
-                            .setInterpolator(new android.view.animation.OvershootInterpolator(1.4f)).start();
-                }
-                dragStartPos = -1;
+                // 松手: 胶囊弹簧到位
+                topTabs.setPosition(pos, false);
             }
         });
 
