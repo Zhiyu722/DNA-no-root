@@ -27,8 +27,11 @@ public class GlassSegmented extends LinearLayout {
     private float pillPos = 0f;   // 胶囊位置(段索引, 弹簧驱动)
     private float pillVel = 0f;
     private final Paint pillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint pillGlossPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private OnSelectedListener listener;
     private android.animation.ValueAnimator springAnim;
+    private GlassScene scene;
 
     public GlassSegmented(Context context, String[] items) {
         super(context);
@@ -52,6 +55,8 @@ public class GlassSegmented extends LinearLayout {
             addView(tv);
         }
         setWillNotDraw(false);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
+        shadowPaint.setColor(0x1A000000);
         springAnim = android.animation.ValueAnimator.ofFloat(0f, 1f);
         springAnim.setDuration(1000);
         springAnim.setRepeatCount(android.animation.ValueAnimator.INFINITE);
@@ -95,24 +100,50 @@ public class GlassSegmented extends LinearLayout {
         this.listener = l;
     }
 
+    /** 绑定场景容器, 让 tab 栏呈现真实玻璃折射效果 */
+    public void attachScene(GlassScene s) {
+        this.scene = s;
+    }
+
     public int getSelectedIndex() {
         return selected;
     }
 
-    /** 连续位置目标(0..n-1 之间的浮点, 来自分页器滑动), 胶囊弹簧跟手 */
-    public void setPosition(float pos) {
-        if (springAnim.isRunning()) springAnim.cancel();
-        targetPos = pos;
-        lastStep = System.nanoTime();
-        springAnim.start();
-        int nearest = Math.round(pos);
-        if (nearest != selected) {
-            selected = nearest;
-            for (int i = 0; i < getChildCount(); i++) {
-                View v = getChildAt(i);
-                if (v instanceof TextView) {
-                    ((TextView) v).setTextColor(i == selected ? Color.WHITE : 0xFF1C242C);
-                }
+    /**
+     * 连续位置目标(0..n-1 之间的浮点, 来自分页器滑动)。
+     * @param instant true = 手指拖动中, 胶囊 1:1 跟手(无弹簧滞后);
+     *                false = 松手/程序切换, 胶囊弹簧回位(液态过冲)。
+     */
+    public void setPosition(float pos, boolean instant) {
+        if (instant) {
+            if (springAnim.isRunning()) springAnim.cancel();
+            pillPos = pos;
+            pillVel = 0;
+            targetPos = pos;
+            int nearest = Math.round(pos);
+            if (nearest != selected) {
+                selected = nearest;
+                updateTextColors();
+            }
+            invalidate();
+        } else {
+            if (springAnim.isRunning()) springAnim.cancel();
+            targetPos = pos;
+            lastStep = System.nanoTime();
+            springAnim.start();
+            int nearest = Math.round(pos);
+            if (nearest != selected) {
+                selected = nearest;
+                updateTextColors();
+            }
+        }
+    }
+
+    private void updateTextColors() {
+        for (int i = 0; i < getChildCount(); i++) {
+            View v = getChildAt(i);
+            if (v instanceof TextView) {
+                ((TextView) v).setTextColor(i == selected ? Color.WHITE : 0xFF1C242C);
             }
         }
     }
@@ -150,25 +181,40 @@ public class GlassSegmented extends LinearLayout {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
         if (items.length == 0) return;
         float w = getWidth() - dp(8);
         float seg = w / items.length;
-        float x = dp(4) + pillPos * seg;
         float y = dp(4);
         float h = getHeight() - dp(8);
+
+        // 玻璃背景(折射 + 高光 + 描边)
+        RectF panel = new RectF(dp(4), dp(4), getWidth() - dp(4), getHeight() - dp(4));
+        GlassRenderer.drawGlass(canvas, scene, this, panel, dp(22), shadowPaint);
+
+        // 滑动胶囊(液态玻璃质感: 蓝色渐变 + 顶部光泽)
+        float x = dp(4) + pillPos * seg;
         RectF rect = new RectF(x + dp(2), y, x + seg - dp(2), y + h);
-        // 蓝色渐变胶囊
         android.graphics.Shader shader = new android.graphics.LinearGradient(
                 rect.left, rect.top, rect.right, rect.bottom,
-                new int[]{0xFF64C6FF, 0xFF169AFF}, null, android.graphics.Shader.TileMode.CLAMP);
+                new int[]{0xFF64C6FF, 0xFF169AFF, 0xFF1273E8},
+                new float[]{0f, 0.55f, 1f}, android.graphics.Shader.TileMode.CLAMP);
         pillPaint.setShader(shader);
         canvas.drawRoundRect(rect, h / 2f, h / 2f, pillPaint);
+        // 胶囊顶部光泽
+        pillGlossPaint.setShader(new android.graphics.LinearGradient(
+                0, rect.top, 0, rect.top + h * 0.55f,
+                0x66FFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
+        canvas.save();
+        android.graphics.Path clip = new android.graphics.Path();
+        clip.addRoundRect(rect, h / 2f, h / 2f, android.graphics.Path.Direction.CW);
+        canvas.clipPath(clip);
+        canvas.drawRect(rect.left, rect.top, rect.right, rect.top + h * 0.55f, pillGlossPaint);
+        canvas.restore();
     }
 
     @Override
     protected void dispatchDraw(android.graphics.Canvas canvas) {
-        // 让文字绘制在胶囊之上
+        // 文字绘制在玻璃与胶囊之上
         super.dispatchDraw(canvas);
     }
 }

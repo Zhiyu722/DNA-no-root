@@ -97,6 +97,7 @@ public class MainActivity extends Activity {
         // 顶部 tab: 解包 | 打包 | 关于
         topTabs = new GlassSegmented(this, new String[]{"解包", "打包", "关于"});
         topTabs.setOnSelectedListener(index -> pager.setCurrentPage(index, true));
+        topTabs.attachScene(scene);
         FrameLayout.LayoutParams tabLp = new FrameLayout.LayoutParams(
                 (int) (260 * density), (int) (44 * density), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         tabLp.topMargin = (int) (dp(14) + statusBarHeight());
@@ -114,9 +115,10 @@ public class MainActivity extends Activity {
         root.addView(pager, pagerLp);
 
         pager.setOnPageChangedListener((index, pos) -> {
-            topTabs.setPosition(pos);      // 胶囊弹簧跟手
-            dots.setPosition(pos);         // 指示点连续
-            topTabs.setTranslationX(-pos * dp(16)); // 顶栏轻微视差, 滑动时有联动感
+            boolean dragging = pager.isDragging();
+            topTabs.setPosition(pos, dragging);   // 拖动 1:1 跟手, 松手弹簧回位
+            dots.setPosition(pos);                // 指示点连续
+            topTabs.setTranslationX(-pos * dp(26)); // 顶栏视差联动, 滑动更有玻璃流动感
         });
 
         // 底部指示器

@@ -71,6 +71,11 @@ public class GlassPager extends ViewGroup {
         return currentPage;
     }
 
+    /** 是否正在被手指拖动(用于顶栏胶囊 1:1 跟手) */
+    public boolean isDragging() {
+        return dragging;
+    }
+
     public void setCurrentPage(int index, boolean animate) {
         if (index < 0 || index >= pages.size()) return;
         if (!animate) {
@@ -191,7 +196,7 @@ public class GlassPager extends ViewGroup {
             case MotionEvent.ACTION_MOVE: {
                 float dx = ev.getX() - downX;
                 float dy = ev.getY() - downY;
-                if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 1.15f) {
+                if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy)) {
                     dragging = true;
                     stopSpring();
                     velocityTracker.reset();
