@@ -97,9 +97,11 @@ public final class DnaEngine {
                 copyFile(input, out);
                 break;
             }
-            case EROFS:
-                p.log("erofs 镜像暂不支持(需要 erofs-utils 工具)");
-                throw new IOException("暂不支持 erofs 解包");
+            case EROFS: {
+                File dir = new File(outRoot, baseName(input));
+                ErofsTool.extract(input, dir, tools, p);
+                break;
+            }
             case OZIP:
                 throw new IOException("Oppo 加密包(ozip)需要解密密钥, 暂不支持");
             case SEVEN_Z:
