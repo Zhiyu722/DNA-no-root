@@ -162,9 +162,13 @@ public class GlassPager extends ViewGroup {
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
-        width = w;
-        posX = currentPage * width;
+        // 仅宽度变化(旋转)才重置位置; 高度变化(键盘弹出)保持当前页, 避免弹簧/胶囊错位
+        if (w != ow && w > 0) {
+            width = w;
+            posX = currentPage * width;
+        }
         scrollTo((int) posX, 0);
+        notifyChanged();   // 关键: 尺寸变化后同步顶栏胶囊, 防止"两秒延迟"
     }
 
     @Override
@@ -196,7 +200,7 @@ public class GlassPager extends ViewGroup {
             case MotionEvent.ACTION_MOVE: {
                 float dx = ev.getX() - downX;
                 float dy = ev.getY() - downY;
-                if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy)) {
+                if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 0.6f) {
                     dragging = true;
                     stopSpring();
                     velocityTracker.reset();
