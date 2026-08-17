@@ -95,6 +95,26 @@ public class GlassSegmented extends LinearLayout {
 
     // ================= 顶栏直接拖动 =================
     @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downX = ev.getX();
+                dragStartPill = pillPos;
+                fingerDragging = false;
+                return false;   // 先让子视图(文字)处理, 点击有效
+            case MotionEvent.ACTION_MOVE:
+                if (!fingerDragging && Math.abs(ev.getX() - downX) > dp(8)) {
+                    fingerDragging = true;   // 拖动接管
+                    if (springAnim.isRunning()) springAnim.cancel();
+                    return true;
+                }
+                return fingerDragging;
+            default:
+                return fingerDragging;
+        }
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent ev) {
         switch (ev.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
@@ -274,10 +294,28 @@ public class GlassSegmented extends LinearLayout {
                 new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawPath(border, borderPaint);
 
-        // ===== 视频12式滑动胶囊: 文字大小, 在段中心间连续滑动 =====
+        // ===== 每个选项: 玻璃药丸背景(未选中项也有玻璃质感) =====
         float seg = w / items.length;
-        float capsuleW = dp(92);   // 胶囊宽度: 刚好包住文字(比整段窄得多)
+        float pillW = dp(96);   // 药丸宽度: 包住两个字
         float cy = h / 2f;
+        Paint optGlass = new Paint(Paint.ANTI_ALIAS_FLAG);
+        optGlass.setColor(0x4DFFFFFF);   // 半透明白玻璃
+        Paint optStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        optStroke.setStyle(Paint.Style.STROKE);
+        optStroke.setStrokeWidth(dp(1));
+        optStroke.setColor(0x66FFFFFF);
+        for (int i = 0; i < items.length; i++) {
+            float cx = (i + 0.5f) * seg;
+            RectF pill = new RectF(cx - pillW / 2f, dp(4), cx + pillW / 2f, h - dp(4));
+            if (Math.abs(i - pillPos) > 0.5f) {
+                // 非选中项: 玻璃药丸
+                canvas.drawRoundRect(pill, radius, radius, optGlass);
+                canvas.drawRoundRect(pill, radius, radius, optStroke);
+            }
+        }
+
+        // ===== 视频12式滑动胶囊: 文字大小, 在段中心间连续滑动 =====
+        float capsuleW = dp(96);
         float centerX = (pillPos + 0.5f) * seg;   // 在段中心间连续滑动
         RectF rect = new RectF(centerX - capsuleW / 2f, dp(4),
                 centerX + capsuleW / 2f, h - dp(4));
