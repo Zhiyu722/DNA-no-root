@@ -150,12 +150,12 @@ public class MainActivity extends Activity {
             topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
             if (dragging) {
-                // 拖动: 顶栏跟随手指 —— 相对拖动起点位移, 有界(不会飞出屏幕)
+                // 拖动: 顶栏轻微视差(始终完全可见, 不会消失) —— 跟手主要靠胶囊
                 if (dragStartPos < 0) dragStartPos = pos;
-                float shift = -(pos - dragStartPos) * pager.getWidth() * 0.28f;
-                shift = Math.max(-170f, Math.min(170f, shift));
+                float shift = -(pos - dragStartPos) * pager.getWidth() * 0.08f;
+                shift = Math.max(-28f, Math.min(28f, shift));
                 topArea.setTranslationX(shift);
-                topTabs.setTranslationX(shift * 0.5f);
+                topTabs.setTranslationX(shift);
             } else {
                 // 松手: 顶栏弹性归位(液态过冲)
                 if (dragStartPos >= 0 || topArea.getTranslationX() != 0) {

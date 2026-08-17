@@ -119,9 +119,10 @@ public class GlassSegmented extends LinearLayout {
         for (int i = 0; i < getChildCount(); i++) {
             View v = getChildAt(i);
             if (v instanceof TextView) {
+                // 选中文字: 纯白(大半径阴影会吞掉字形, 不要用); 未选中: 深灰
                 ((TextView) v).setTextColor(i == selected ? Color.WHITE : 0xFF4A5568);
-                ((TextView) v).setShadowLayer(i == selected ? dp(6) : 0, 0, 0,
-                        i == selected ? 0x6600BFFF : 0);
+                ((TextView) v).setShadowLayer(0, 0, 0, 0);
+                ((TextView) v).setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             }
         }
     }
