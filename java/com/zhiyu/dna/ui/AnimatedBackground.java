@@ -59,7 +59,7 @@ public class AnimatedBackground extends View {
         tick(dt);
         drawTo(canvas);
         if (frameCallback != null) frameCallback.run();
-        postInvalidateOnAnimation();
+        postInvalidateDelayed(40); // ~25fps, 减少大屏负担
     }
 
     public void setFrameCallback(Runnable r) {

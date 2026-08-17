@@ -28,9 +28,9 @@ public class GlassScene extends FrameLayout {
         return bg;
     }
 
-    /** 请求一帧背景捕获(由动画驱动调用) */
+    /** 请求一帧背景捕获(由动画驱动调用) —— 降频防大屏卡死 */
     public void requestCapture() {
-        postDelayed(captureTask, 66); // ~15fps, 避免每帧全屏拷贝
+        postDelayed(captureTask, 250); // ~4fps, 大屏(平板)也不会卡主线程
     }
 
     private void capture() {
@@ -39,7 +39,7 @@ public class GlassScene extends FrameLayout {
         lastCapture = now;
         int w = getWidth(), h = getHeight();
         if (w <= 0 || h <= 0) return;
-        int cw = Math.max(1, w / 3), ch = Math.max(1, h / 3);
+        int cw = Math.max(1, w / 4), ch = Math.max(1, h / 4);
         synchronized (lock) {
             if (bgCache == null || bgCache.getWidth() != cw || bgCache.getHeight() != ch) {
                 if (bgCache != null) bgCache.recycle();
