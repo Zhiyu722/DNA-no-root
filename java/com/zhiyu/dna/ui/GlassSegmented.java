@@ -47,7 +47,7 @@ public class GlassSegmented extends LinearLayout {
         this.items = items;
         setOrientation(HORIZONTAL);
         setGravity(Gravity.CENTER);
-        setPadding((int) dp(5), (int) dp(5), (int) dp(5), (int) dp(5));
+        setPadding(0, 0, 0, 0);
         setWillNotDraw(false);
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         shadowPaint.setColor(0x24000000);
@@ -67,7 +67,7 @@ public class GlassSegmented extends LinearLayout {
             tv.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
             tv.setGravity(Gravity.CENTER);
             tv.setTextColor(ColorStateList.valueOf(0xFF1C242C));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, (int) dp(38), 1);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, (int) dp(46), 1);
             tv.setLayoutParams(lp);
             tv.setOnClickListener(v -> setSelected(idx, true));
             addView(tv);
@@ -201,63 +201,39 @@ public class GlassSegmented extends LinearLayout {
         float h = getHeight();
         float radius = h / 2f;
 
-        // ===== 玻璃面板 =====
-        RectF panel = new RectF(dp(2), dp(2), w - dp(2), h - dp(2));
-        GlassRenderer.drawGlass(canvas, scene, this, panel, radius, shadowPaint);
+        // ===== 参考设计: 无外框面板, 纯色胶囊直接贴在文字上滑动 =====
+        float seg = w / items.length;
+        float capsuleW = dp(88);   // 胶囊宽度: 刚好包住两个字的文字
+        float cy = h / 2f;
+        float centerX = (pillPos + 0.5f) * seg;   // 在段中心间连续滑动
+        RectF rect = new RectF(centerX - capsuleW / 2f, dp(4),
+                centerX + capsuleW / 2f, h - dp(4));
 
-        // 渐变描边(青→蓝→紫, 液态光晕感)
-        Path border = new Path();
-        border.addRoundRect(panel, radius, radius, Path.Direction.CW);
-        borderPaint.setShader(new LinearGradient(0, 0, w, h,
-                new int[]{0x55FFFFFF, 0x9999FFFF, 0x66FFB3FF, 0x55FFFFFF},
-                new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
-        canvas.drawPath(border, borderPaint);
-
-        // ===== 发光指示胶囊 =====
-        float seg = (w - dp(10)) / items.length;
-        float x = dp(5) + pillPos * seg;
-        RectF rect = new RectF(x + dp(3), dp(5), x + seg - dp(3), h - dp(5));
-
-        // 外发光
-        glowPaint.setStrokeWidth(dp(9));
-        glowPaint.setShader(new LinearGradient(rect.left, 0, rect.right, 0,
-                new int[]{0x4064C6FF, 0x55169AFF, 0x4064C6FF}, null, Shader.TileMode.CLAMP));
-        Path glowPath = new Path();
-        glowPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
-        canvas.drawPath(glowPath, glowPaint);
-
-        // 胶囊主体
+        // 胶囊: 蓝青渐变(参考是纯蓝, 我们保留一点渐变更有质感)
         pillPaint.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                new int[]{0xFF7AD7FF, 0xFF169AFF, 0xFF1273E8},
+                new int[]{0xFF4FB6FF, 0xFF169AFF, 0xFF0F7CE8},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawRoundRect(rect, radius, radius, pillPaint);
 
-        // 顶部光泽
-        pillGlossPaint.setShader(new LinearGradient(0, rect.top, 0, rect.top + h * 0.6f,
-                0x77FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        // 顶部细高光(液态感)
+        pillGlossPaint.setShader(new LinearGradient(0, rect.top, 0, rect.top + h * 0.5f,
+                0x55FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
         canvas.save();
         Path clip = new Path();
         clip.addRoundRect(rect, radius, radius, Path.Direction.CW);
         canvas.clipPath(clip);
-        canvas.drawRect(rect.left, rect.top, rect.right, rect.top + h * 0.6f, pillGlossPaint);
-        // 顶部细亮线
-        Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
-        edge.setStrokeWidth(dp(1.6f));
-        edge.setColor(0xBFFFFFFF);
-        canvas.drawRoundRect(new RectF(rect.left + dp(6), rect.top + dp(2.4f),
-                rect.right - dp(6), rect.top + dp(4)), dp(2), dp(2), edge);
+        canvas.drawRect(rect.left, rect.top, rect.right, rect.top + h * 0.5f, pillGlossPaint);
         canvas.restore();
 
-        // ===== 底部小光点(技能点式点缀) =====
-        Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
-        float cy = h - dp(4.5f);
-        for (int i = 0; i < items.length; i++) {
-            float cx = dp(5) + (i + 0.5f) * seg;
-            float dist = Math.abs(i - pillPos);
-            int alpha = (int) (40 + 200 * Math.max(0, 1 - dist));
-            dot.setColor(Color.argb(alpha, 0x40, 0xD0, 0xFF));
-            canvas.drawCircle(cx, cy, dp(1.8f), dot);
-        }
+        // 柔和阴影
+        canvas.save();
+        canvas.translate(0, dp(2));
+        Paint sh = new Paint(Paint.ANTI_ALIAS_FLAG);
+        sh.setColor(0x2A169AFF);
+        Path shadowPath = new Path();
+        shadowPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
+        canvas.drawPath(shadowPath, sh);
+        canvas.restore();
     }
 
     @Override
