@@ -209,18 +209,17 @@ public class GlassPager extends ViewGroup {
                 float dx = ev.getX() - downX;
                 float dy = ev.getY() - downY;
                 if (!dragging && !touchLocked) {
-                    // 第一次显著移动决定方向: 水平→翻页; 垂直→本次手势锁定为滚动(不抢)
-                    if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
-                        if (Math.abs(dx) > Math.abs(dy)) {
-                            dragging = true;
-                            dragStartPosX = posX;
-                            stopSpring();
-                            velocityTracker.reset();
-                            velocityTracker.addPosition(System.currentTimeMillis(), posX);
-                            return true;
-                        } else {
-                            touchLocked = true;
-                        }
+                    // 灵敏判定: 水平分量 ≥ 竖向一半 → 翻页(容忍斜滑/抖动);
+                    // 竖向 > 2倍水平 → 锁定为垂直滚动(不抢)
+                    if (Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 0.5f) {
+                        dragging = true;
+                        dragStartPosX = posX;
+                        stopSpring();
+                        velocityTracker.reset();
+                        velocityTracker.addPosition(System.currentTimeMillis(), posX);
+                        return true;
+                    } else if (Math.abs(dy) > touchSlop && Math.abs(dy) > Math.abs(dx) * 2f) {
+                        touchLocked = true;
                     }
                 }
                 return dragging;
