@@ -118,10 +118,13 @@ public class GlassSegmented extends LinearLayout {
             }
             invalidate();
         } else {
-            if (springAnim.isRunning()) springAnim.cancel();
+            // 关键修复: 只更新目标, 动画器已在运行就不重启 ——
+            // 否则分页器弹簧每帧回调都会 cancel+start, dt 恒为 0, 胶囊被冻住(两秒延迟的根因)
             targetPos = pos;
-            lastStep = System.nanoTime();
-            springAnim.start();
+            if (!springAnim.isRunning()) {
+                lastStep = System.nanoTime();
+                springAnim.start();
+            }
             int nearest = Math.round(pos);
             if (nearest != selected) {
                 selected = nearest;
@@ -148,9 +151,10 @@ public class GlassSegmented extends LinearLayout {
         selected = index;
         updateTextColors();
         targetPos = index;
-        if (springAnim.isRunning()) springAnim.cancel();
-        lastStep = System.nanoTime();
-        springAnim.start();
+        if (!springAnim.isRunning()) {
+            lastStep = System.nanoTime();
+            springAnim.start();
+        }
         if (changed && notify && listener != null) listener.onSelected(index);
     }
 
