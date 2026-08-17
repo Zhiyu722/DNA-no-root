@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
     private GlassScene scene;
     private LinearLayout topArea;
     private float dragStartPos = -1;
+    private View permBanner;
     private float pillStartSeg = 0f;
 
     private void buildUi() {
@@ -538,19 +539,9 @@ public class MainActivity extends Activity {
     // ================= 存储权限 =================
 
     private void checkStoragePermission() {
+        // 不自动跳系统授权页(平板/用户会困惑), 改为应用内提示条
         if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
-            // 直接引导到「所有文件访问」设置
-            try {
-                Intent i = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:" + getPackageName()));
-                startActivityForResult(i, REQ_ALL_FILES);
-            } catch (Exception e) {
-                try {
-                    startActivityForResult(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION), REQ_ALL_FILES);
-                } catch (Exception e2) {
-                    // 无法打开设置页, 继续使用 SAF
-                }
-            }
+            showPermissionBanner();
         } else if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 30) {
             if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -559,6 +550,59 @@ public class MainActivity extends Activity {
                         Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
             }
         }
+    }
+
+    /** 应用内玻璃提示条: 点击去系统授权 */
+    private void showPermissionBanner() {
+        if (permBanner != null) {
+            permBanner.setVisibility(View.VISIBLE);
+            return;
+        }
+        GlassCard card = new GlassCard(this);
+        card.attachScene(scene);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding((int) dp(14), (int) dp(10), (int) dp(14), (int) dp(10));
+        TextView tv = new TextView(this);
+        tv.setText("需要「所有文件访问」权限才能读取/写入 /sdcard");
+        tv.setTextColor(0xFF14191C);
+        tv.setTextSize(13);
+        row.addView(tv, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        TextView btn = new TextView(this);
+        btn.setText("去授权");
+        btn.setTextColor(0xFFFFFFFF);
+        btn.setTextSize(13);
+        btn.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        btn.setGravity(Gravity.CENTER);
+        btn.setPadding((int) dp(14), (int) dp(8), (int) dp(14), (int) dp(8));
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setCornerRadius(dp(16));
+        gd.setColor(0xFF007FFF);
+        btn.setBackground(gd);
+        btn.setOnClickListener(v -> {
+            try {
+                Intent i = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(i, REQ_ALL_FILES);
+            } catch (Exception e) {
+                try {
+                    startActivityForResult(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION), REQ_ALL_FILES);
+                } catch (Exception e2) {
+                    toast("请手动打开设置 → 应用 → DNA 解包助手 → 所有文件访问");
+                }
+            }
+        });
+        row.addView(btn);
+        card.addView(row);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP);
+        lp.topMargin = (int) (dp(8) + statusBarHeight());
+        lp.leftMargin = (int) dp(12);
+        lp.rightMargin = (int) dp(12);
+        scene.addView(card, lp);
+        permBanner = card;
     }
 
     // ================= 文件选择 =================
@@ -610,6 +654,12 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode != RESULT_OK || data == null) return;
         try {
+            if (requestCode == REQ_ALL_FILES) {
+                if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager() && permBanner != null) {
+                    permBanner.setVisibility(View.GONE);
+                }
+                return;
+            }
             if (requestCode == REQ_INPUT_FILE && data.getData() != null) {
                 String path = resolvePath(data.getData());
                 inputPathEt.setText(path);
