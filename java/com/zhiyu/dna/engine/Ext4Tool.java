@@ -1,0 +1,75 @@
+package com.zhiyu.dna.engine;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * ext4 镜像处理 —— 基于内置 e2fsprogs:
+ *   解包: debugfs -R "rdump / <outdir>" <img>
+ *   打包: mke2fs -t ext4 -b 4096 -d <srcdir> <img> <size>
+ */
+public final class Ext4Tool {
+
+    private Ext4Tool() {}
+
+    /** 解包 ext4 raw 镜像到 outDir。 */
+    public static void extract(File img, File outDir, ToolPaths tools, Progress p) throws IOException {
+        File raw = img;
+        File tempRaw = null;
+        try {
+            if (SparseImage.isSparse(img)) {
+                p.log("sparse 镜像 → 先展开为 raw ...");
+                tempRaw = File.createTempFile("unsparse", ".raw");
+                tempRaw.deleteOnExit();
+                SparseImage.toRaw(img, tempRaw, p);
+                raw = tempRaw;
+            }
+            if (!outDir.exists() && !outDir.mkdirs()) throw new IOException("无法创建目录: " + outDir);
+
+            // 校验 ext4 魔数(小端 0xEF53)
+            try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(raw, "r")) {
+                raf.seek(1080);
+                int b0 = raf.readUnsignedByte();
+                int b1 = raf.readUnsignedByte();
+                int magic = (b0 & 0xFF) | ((b1 & 0xFF) << 8);
+                if (magic != 0xEF53) {
+                    throw new IOException("不是 ext2/3/4 镜像 (魔数 0x" + Integer.toHexString(magic) + ")");
+                }
+            }
+
+            p.log("调用 debugfs 提取 ext4 文件系统 ...");
+            File rdumpDir = new File(outDir, "rdump");
+            rdumpDir.mkdirs();
+            List<String> cmd = Exec.cmd(tools.debugfs.getAbsolutePath(),
+                    "-R", "rdump / " + rdumpDir.getAbsolutePath(),
+                    raw.getAbsolutePath());
+            int code = Exec.run(tools.libDir, p, cmd);
+            if (code != 0) throw new IOException("debugfs 提取失败 (exit " + code + ")");
+            p.log("ext4 提取完成 → " + rdumpDir.getAbsolutePath());
+        } finally {
+            if (tempRaw != null) Io.deleteRecursive(tempRaw);
+        }
+    }
+
+    /** 打包目录为 ext4 镜像(不含 selinux 上下文/owner, 基本可用)。 */
+    public static void pack(File srcDir, File outImg, String label, ToolPaths tools, Progress p)
+            throws IOException {
+        if (!srcDir.isDirectory()) throw new IOException("源目录无效: " + srcDir);
+        long fileSize = Io.filesSize(srcDir);
+        if (fileSize == 0) throw new IOException("源目录为空");
+        long size = fileSize * 11 / 10 + (16L << 20); // 1.1x + 16MB 余量
+        size = (size + 4095) / 4096 * 4096;
+        if (size < (64L << 20)) size = 64L << 20;
+
+        p.log("计算大小: 文件 " + (fileSize / 1048576) + " MB → 镜像 " + (size / 1048576) + " MB");
+        p.log("调用 mke2fs 生成 ext4 ...");
+        List<String> cmd = Exec.cmd(tools.mke2fs.getAbsolutePath(),
+                "-q", "-t", "ext4", "-b", "4096", "-d", srcDir.getAbsolutePath(),
+                "-L", label == null || label.isEmpty() ? "DNA" : label,
+                outImg.getAbsolutePath(), String.valueOf(size));
+        int code = Exec.run(tools.libDir, p, cmd);
+        if (code != 0) throw new IOException("mke2fs 打包失败 (exit " + code + ")");
+        p.log("ext4 镜像已生成 → " + outImg.getAbsolutePath());
+    }
+}
