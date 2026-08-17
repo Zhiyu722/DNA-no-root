@@ -23,8 +23,8 @@ public class GlassPager extends ViewGroup {
         void onPageChanged(int index, float position);
     }
 
-    private static final double SPRING_K = 300.0;
-    private static final double SPRING_DAMPING = 0.55;
+    private static final double SPRING_K = 420.0;
+    private static final double SPRING_DAMPING = 0.88;
     private static final double OMEGA_N = Math.sqrt(SPRING_K);
     private static final double PARALLAX = 0.10;        // 视差比例
     private static final float NEIGHBOR_SCALE = 0.94f; // 相邻页缩放
@@ -259,9 +259,13 @@ public class GlassPager extends ViewGroup {
                 dragging = false;
                 touchLocked = false;
                 double v = velocityTracker.calculateVelocity(100);
-                int target = (int) Math.round(posX / Math.max(1, width));
-                if (Math.abs(v) > 450) {
-                    target = (int) (posX / Math.max(1, width) + (v > 0 ? -0.5 : 0.5));
+                double posF = posX / Math.max(1, width);
+                // 就近页(拖过 50% 即翻页)
+                int target = (int) Math.round(posF);
+                if (v < -380) {
+                    target = (int) Math.floor(posF) + 1;   // 向前甩 → 下一页
+                } else if (v > 380) {
+                    target = (int) Math.ceil(posF) - 1;    // 向后甩 → 上一页
                 }
                 target = Math.max(0, Math.min(target, pages.size() - 1));
                 targetX = target * width;
