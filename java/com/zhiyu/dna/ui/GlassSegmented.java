@@ -39,6 +39,7 @@ public class GlassSegmented extends LinearLayout {
     private OnSelectedListener listener;
     private ValueAnimator springAnim;
     private long lastStep;
+    private long lastLog2;
     private GlassScene scene;
 
     public GlassSegmented(Context context, String[] items) {
@@ -162,9 +163,9 @@ public class GlassSegmented extends LinearLayout {
         long now = System.nanoTime();
         float dt = Math.min(0.033f, (now - lastStep) / 1e9f);
         lastStep = now;
-        double omegaN = Math.sqrt(340.0);
+        double omegaN = Math.sqrt(420.0);
         double target = targetPos >= 0 ? targetPos : selected;
-        double[] r = springUnderdamped(pillPos, pillVel, target, dt, omegaN, 0.58);
+        double[] r = springUnderdamped(pillPos, pillVel, target, dt, omegaN, 0.88);
         pillPos = (float) r[0];
         pillVel = (float) r[1];
         if (Math.abs(pillPos - target) < 0.0035f && Math.abs(pillVel) < 0.02f) {

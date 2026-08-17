@@ -151,16 +151,11 @@ public class MainActivity extends Activity {
             topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
             if (dragging) {
-                // 拖动: 胶囊 1:1 像素跟手 —— 胶囊位移 = 手指位移
-                if (dragStartPos < 0) {
-                    dragStartPos = pos;
-                    pillStartSeg = topTabs.getCurrentPos();
-                }
-                float segW = topTabs.getSegmentWidth();
-                float pillSeg = pillStartSeg + (float) ((pos * pager.getWidth() - pager.getDragStartPosX()) / segW);
-                pillSeg = Math.max(0f, Math.min(pillSeg, topTabs.getPageCount() - 1f));
-                topTabs.setPosition(pillSeg, true);
+                // 拖动: 胶囊按内容位置比例实时跟踪(instant 无延迟, 无弹簧冻结)
+                // 手指拖 720px = 一整页 → 胶囊走一段; 指哪跟哪, 不会超前也不会滞后
+                topTabs.setPosition(pos, true);
                 // 顶栏轻微视差(始终可见)
+                if (dragStartPos < 0) dragStartPos = pos;
                 float shift = -(pos - dragStartPos) * pager.getWidth() * 0.08f;
                 shift = Math.max(-28f, Math.min(28f, shift));
                 topArea.setTranslationX(shift);
