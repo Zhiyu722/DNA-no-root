@@ -1,0 +1,292 @@
+package com.zhiyu.dna.ui;
+
+import android.animation.ValueAnimator;
+import android.content.Context;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewGroup;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 液态滑动分页器 —— 移植 Liquidglass.js 的弹簧物理:
+ *  - 拖动时手指直接控制位置(带边缘阻尼)
+ *  - 松手用 100ms 窗口最小二乘速度估算甩动方向
+ *  - 用欠阻尼弹簧(K=300, ζ≈0.55)回弹到目标页, 带液态过冲回弹
+ *  - 相邻页视差 + 缩放, 制造深度
+ */
+public class GlassPager extends ViewGroup {
+
+    public interface OnPageChangedListener {
+        void onPageChanged(int index, float position);
+    }
+
+    private static final double SPRING_K = 300.0;
+    private static final double SPRING_DAMPING = 0.55;
+    private static final double OMEGA_N = Math.sqrt(SPRING_K);
+    private static final double PARALLAX = 0.10;        // 视差比例
+    private static final float NEIGHBOR_SCALE = 0.94f; // 相邻页缩放
+
+    private final List<View> pages = new ArrayList<>();
+    private final VelocityTracker1D velocityTracker = new VelocityTracker1D();
+    private final int touchSlop;
+    private final ValueAnimator springAnimator;
+
+    private double posX;          // 当前滚动位置 px
+    private double posVel;        // 弹簧速度 px/s
+    private double targetX;       // 弹簧目标
+    private boolean springRunning;
+    private long lastFrameNanos;
+    private float lastX = -1f;
+
+    private float downX, downY;
+    private boolean dragging;
+    private int currentPage;
+    private int width;
+    private OnPageChangedListener listener;
+
+    public GlassPager(Context context) {
+        super(context);
+        touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+        springAnimator = ValueAnimator.ofFloat(0f, 1f);
+        springAnimator.setDuration(1000);
+        springAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        springAnimator.addUpdateListener(a -> springTick());
+        setWillNotDraw(true);
+    }
+
+    public void addPage(View v) {
+        pages.add(v);
+        addView(v, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        requestLayout();
+    }
+
+    public void setOnPageChangedListener(OnPageChangedListener l) {
+        this.listener = l;
+    }
+
+    public int getCurrentPage() {
+        return currentPage;
+    }
+
+    public void setCurrentPage(int index, boolean animate) {
+        if (index < 0 || index >= pages.size()) return;
+        if (!animate) {
+            posX = index * width;
+            targetX = posX;
+            posVel = 0;
+            settleNow();
+        } else {
+            targetX = index * width;
+            startSpring();
+        }
+    }
+
+    private void startSpring() {
+        springRunning = true;
+        lastFrameNanos = System.nanoTime();
+        springAnimator.start();
+    }
+
+    private void stopSpring() {
+        springRunning = false;
+        springAnimator.cancel();
+    }
+
+    private void springTick() {
+        long nowNanos = System.nanoTime();
+        double dt = Math.min(0.033, (nowNanos - lastFrameNanos) / 1e9);
+        lastFrameNanos = nowNanos;
+        double[] r = springStepUnderdamped(posX, posVel, targetX, dt, OMEGA_N, SPRING_DAMPING);
+        posX = r[0];
+        posVel = r[1];
+        if (Math.abs(posX - targetX) < 0.4 && Math.abs(posVel) < 3.0) {
+            posX = targetX;
+            posVel = 0;
+            springRunning = false;
+            springAnimator.cancel();
+        }
+        applyScroll();
+        notifyChanged();
+    }
+
+    private void settleNow() {
+        applyScroll();
+        notifyChanged();
+    }
+
+    /** 欠阻尼弹簧一步(移植自 Liquidglass.js springStepUnderdamped) */
+    private static double[] springStepUnderdamped(double current, double velocity, double target,
+                                                  double dt, double omegaN, double dampingRatio) {
+        double x0 = current - target;
+        double v0 = velocity;
+        double omegaD = omegaN * Math.sqrt(Math.max(0, 1 - dampingRatio * dampingRatio));
+        double decay = Math.exp(-dampingRatio * omegaN * dt);
+        double cosWd = Math.cos(omegaD * dt);
+        double sinWd = Math.sin(omegaD * dt);
+        double offset = x0 * decay * cosWd + (v0 + dampingRatio * omegaN * x0) / omegaD * decay * sinWd;
+        double b0 = (v0 + dampingRatio * omegaN * x0) / omegaD;
+        double newVel = -dampingRatio * omegaN * offset + decay * (-x0 * omegaD * sinWd + b0 * omegaD * cosWd);
+        return new double[]{target + offset, newVel};
+    }
+
+    private void applyScroll() {
+        scrollTo((int) Math.round(posX), 0);
+        float pw = Math.max(1, width);
+        for (int i = 0; i < pages.size(); i++) {
+            View v = pages.get(i);
+            float offset = (float) (posX - i * pw);
+            v.setTranslationX(offset * (float) PARALLAX);
+            float scale = 1f - (1f - NEIGHBOR_SCALE) * Math.min(1f, Math.abs(offset) / pw);
+            v.setScaleX(scale);
+            v.setScaleY(scale);
+        }
+    }
+
+    private void notifyChanged() {
+        if (width <= 0) return;
+        currentPage = (int) Math.round(posX / width);
+        currentPage = Math.max(0, Math.min(currentPage, pages.size() - 1));
+        if (listener != null) listener.onPageChanged(currentPage, (float) (posX / width));
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int ow, int oh) {
+        super.onSizeChanged(w, h, ow, oh);
+        width = w;
+        posX = currentPage * width;
+        scrollTo((int) posX, 0);
+    }
+
+    @Override
+    protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        for (int i = 0; i < pages.size(); i++) {
+            pages.get(i).layout(i * getWidth(), 0, (i + 1) * getWidth(), getHeight());
+        }
+    }
+
+    @Override
+    protected void onMeasure(int w, int h) {
+        for (View v : pages) {
+            measureChild(v, MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(w), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(h), MeasureSpec.EXACTLY));
+        }
+        setMeasuredDimension(MeasureSpec.getSize(w), MeasureSpec.getSize(h));
+    }
+
+    // ================= 触摸 =================
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                downX = ev.getX();
+                downY = ev.getY();
+                dragging = false;
+                return false;
+            case MotionEvent.ACTION_MOVE: {
+                float dx = ev.getX() - downX;
+                float dy = ev.getY() - downY;
+                if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 1.15f) {
+                    dragging = true;
+                    stopSpring();
+                    velocityTracker.reset();
+                    velocityTracker.addPosition(System.currentTimeMillis(), posX);
+                    return true;
+                }
+                return dragging;
+            }
+            default:
+                return dragging;
+        }
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                stopSpring();
+                velocityTracker.reset();
+                velocityTracker.addPosition(System.currentTimeMillis(), posX);
+                lastX = ev.getX();
+                return true;
+            case MotionEvent.ACTION_MOVE: {
+                float x = ev.getX();
+                if (lastX < 0) lastX = x;
+                double delta = lastX - x;
+                lastX = x;
+                double next = posX + delta;
+                double maxX = (pages.size() - 1) * width;
+                if (next < 0) next *= 0.32;
+                if (next > maxX) next = maxX + (next - maxX) * 0.32;
+                posX = next;
+                posVel = 0;
+                velocityTracker.addPosition(System.currentTimeMillis(), posX);
+                applyScroll();
+                notifyChanged();
+                return true;
+            }
+            case MotionEvent.ACTION_UP: {
+                lastX = -1f;
+                double v = velocityTracker.calculateVelocity(100);
+                int target = (int) Math.round(posX / Math.max(1, width));
+                if (Math.abs(v) > 450) {
+                    target = (int) (posX / Math.max(1, width) + (v > 0 ? -0.5 : 0.5));
+                }
+                target = Math.max(0, Math.min(target, pages.size() - 1));
+                targetX = target * width;
+                posVel = -v;   // 内容速度反向
+                startSpring();
+                return true;
+            }
+            case MotionEvent.ACTION_CANCEL:
+                lastX = -1f;
+                stopSpring();
+                targetX = Math.round(posX / Math.max(1, width)) * width;
+                posVel = 0;
+                startSpring();
+                return true;
+        }
+        return true;
+    }
+
+    // ---------------- 最小二乘速度(移植 Liquidglass.js VelocityTracker1D) ----------------
+
+    private static final class VelocityTracker1D {
+        private static final int MAX_SAMPLES = 20;
+        private final List<long[]> samples = new ArrayList<>(); // {t, p}
+
+        void reset() {
+            samples.clear();
+        }
+
+        void addPosition(long timeMillis, double position) {
+            samples.add(new long[]{timeMillis, (long) position});
+            if (samples.size() > MAX_SAMPLES) samples.remove(0);
+        }
+
+        double calculateVelocity(int windowMs) {
+            if (samples.size() < 2) return 0;
+            long now = samples.get(samples.size() - 1)[0];
+            long cutoff = now - windowMs;
+            int n = 0;
+            double sumT = 0, sumP = 0, sumTT = 0, sumTP = 0;
+            for (int i = samples.size() - 1; i >= 0; i--) {
+                long[] s = samples.get(i);
+                if (s[0] < cutoff) break;
+                double tt = (s[0] - now) / 1e3;
+                sumT += tt;
+                sumP += s[1];
+                sumTT += tt * tt;
+                sumTP += tt * s[1];
+                n++;
+            }
+            if (n < 2) return 0;
+            double denom = n * sumTT - sumT * sumT;
+            if (Math.abs(denom) < 1e-9) return 0;
+            return (n * sumTP - sumT * sumP) / denom;
+        }
+    }
+}

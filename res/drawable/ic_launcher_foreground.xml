@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DNA 双螺旋前景图标 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 左链 -->
+    <path
+        android:pathData="M54,16 C72,27 72,45 54,54 C36,63 36,81 54,92"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- 右链 -->
+    <path
+        android:pathData="M54,16 C36,27 36,45 54,54 C72,63 72,81 54,92"
+        android:strokeColor="#CCFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <!-- 横档 -->
+    <path
+        android:pathData="M47.5,34 L60.5,34"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M47.5,54 L60.5,54"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M47.5,74 L60.5,74"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round" />
+    <!-- 底部小圆点(装饰) -->
+    <path
+        android:pathData="M54,16 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
+        android:fillColor="#FFE082" />
+    <path
+        android:pathData="M54,92 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
+        android:fillColor="#FFE082" />
+</vector>
