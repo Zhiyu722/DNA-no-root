@@ -36,6 +36,7 @@ public class GlassPager extends ViewGroup {
 
     private double posX;          // 当前滚动位置 px
     private double posVel;        // 弹簧速度 px/s
+    private double dragStartPosX; // 拖动起点(px)
     private double targetX;       // 弹簧目标
     private boolean springRunning;
     private long lastFrameNanos;
@@ -74,6 +75,11 @@ public class GlassPager extends ViewGroup {
     /** 是否正在被手指拖动(用于顶栏胶囊 1:1 跟手) */
     public boolean isDragging() {
         return dragging;
+    }
+
+    /** 拖动起点 posX(px), 用于顶栏胶囊 1:1 像素跟手 */
+    public double getDragStartPosX() {
+        return dragStartPosX;
     }
 
     public void setCurrentPage(int index, boolean animate) {
@@ -202,6 +208,7 @@ public class GlassPager extends ViewGroup {
                 float dy = ev.getY() - downY;
                 if (!dragging && Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 0.6f) {
                     dragging = true;
+                    dragStartPosX = posX;
                     stopSpring();
                     velocityTracker.reset();
                     velocityTracker.addPosition(System.currentTimeMillis(), posX);

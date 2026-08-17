@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
     private GlassScene scene;
     private LinearLayout topArea;
     private float dragStartPos = -1;
+    private float pillStartSeg = 0f;
 
     private void buildUi() {
         float density = getResources().getDisplayMetrics().density;
@@ -150,8 +151,16 @@ public class MainActivity extends Activity {
             topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
             dots.setPosition(pos);                // 指示点连续
             if (dragging) {
-                // 拖动: 顶栏轻微视差(始终完全可见, 不会消失) —— 跟手主要靠胶囊
-                if (dragStartPos < 0) dragStartPos = pos;
+                // 拖动: 胶囊 1:1 像素跟手 —— 胶囊位移 = 手指位移
+                if (dragStartPos < 0) {
+                    dragStartPos = pos;
+                    pillStartSeg = topTabs.getCurrentPos();
+                }
+                float segW = topTabs.getSegmentWidth();
+                float pillSeg = pillStartSeg + (float) ((pos * pager.getWidth() - pager.getDragStartPosX()) / segW);
+                pillSeg = Math.max(0f, Math.min(pillSeg, topTabs.getPageCount() - 1f));
+                topTabs.setPosition(pillSeg, true);
+                // 顶栏轻微视差(始终可见)
                 float shift = -(pos - dragStartPos) * pager.getWidth() * 0.08f;
                 shift = Math.max(-28f, Math.min(28f, shift));
                 topArea.setTranslationX(shift);

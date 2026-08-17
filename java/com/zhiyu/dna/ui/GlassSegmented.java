@@ -86,6 +86,21 @@ public class GlassSegmented extends LinearLayout {
         return selected;
     }
 
+    /** 每段宽度 px(1:1 像素跟手用) */
+    public float getSegmentWidth() {
+        return (getWidth() - dp(10)) / Math.max(1, items.length);
+    }
+
+    /** 段数 */
+    public float getPageCount() {
+        return items.length;
+    }
+
+    /** 当前胶囊位置(段单位) */
+    public float getCurrentPos() {
+        return pillPos;
+    }
+
     /**
      * 连续位置(0..n-1)。
      * @param instant true = 手指拖动, 胶囊 1:1 跟手; false = 松手/切换, 弹簧回弹
