@@ -260,14 +260,18 @@ public class GlassPager extends ViewGroup {
                 touchLocked = false;
                 double v = velocityTracker.calculateVelocity(100);
                 double posF = posX / Math.max(1, width);
+                android.util.Log.d("DNAup", "posF=" + String.format("%.3f", posF)
+                        + " v=" + (int) v + " x=" + (int) posX);
                 // 就近页(拖过 50% 即翻页)
                 int target = (int) Math.round(posF);
-                if (v < -380) {
-                    target = (int) Math.floor(posF) + 1;   // 向前甩 → 下一页
-                } else if (v > 380) {
-                    target = (int) Math.ceil(posF) - 1;    // 向后甩 → 上一页
+                // 速度方向: 手指向左滑(posX 增大)速度为正 → 下一页; 向右滑为负 → 上一页
+                if (v > 380) {
+                    target = (int) Math.floor(posF) + 1;   // 向左甩 → 下一页
+                } else if (v < -380) {
+                    target = (int) Math.ceil(posF) - 1;    // 向右甩 → 上一页
                 }
                 target = Math.max(0, Math.min(target, pages.size() - 1));
+                android.util.Log.d("DNAup", "  → target=" + target);
                 targetX = target * width;
                 posVel = -v;   // 内容速度反向
                 startSpring();
