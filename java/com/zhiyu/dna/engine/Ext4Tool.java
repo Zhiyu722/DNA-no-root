@@ -52,13 +52,13 @@ public final class Ext4Tool {
         }
     }
 
-    /** 打包目录为 ext4 镜像(不含 selinux 上下文/owner, 基本可用)。 */
+    /** 打包目录为 ext4 镜像(含 fs_config 与 selinux 上下文, 解包→打包可引导)。 */
     public static void pack(File srcDir, File outImg, String label, ToolPaths tools, Progress p)
             throws IOException {
         if (!srcDir.isDirectory()) throw new IOException("源目录无效: " + srcDir);
         long fileSize = Io.filesSize(srcDir);
         if (fileSize == 0) throw new IOException("源目录为空");
-        long size = fileSize * 11 / 10 + (16L << 20); // 1.1x + 16MB 余量
+        long size = fileSize * 12 / 10 + (20L << 20); // 1.2x + 20MB 余量
         size = (size + 4095) / 4096 * 4096;
         if (size < (64L << 20)) size = 64L << 20;
 
@@ -70,6 +70,24 @@ public final class Ext4Tool {
                 outImg.getAbsolutePath(), String.valueOf(size));
         int code = Exec.run(tools.libDir, p, cmd);
         if (code != 0) throw new IOException("mke2fs 打包失败 (exit " + code + ")");
+
+        // 用 e2fsdroid 应用 fs_config 和 selinux 上下文(关键: 保证打包后可引导)
+        File fsConfig = new File(srcDir.getParentFile(), "config/" + label + "_fs_config");
+        File contexts = new File(srcDir.getParentFile(), "config/" + label + "_contexts");
+        if (fsConfig.exists() || contexts.exists()) {
+            p.log("应用 fs_config 与 selinux 上下文 ...");
+            StringBuilder e2 = new StringBuilder(tools.e2fsdroid.getAbsolutePath());
+            e2.append(" -f ").append(srcDir.getAbsolutePath());
+            e2.append(" -a /").append(label);
+            if (contexts.exists()) e2.append(" -S ").append(contexts.getAbsolutePath());
+            if (fsConfig.exists()) e2.append(" -C ").append(fsConfig.getAbsolutePath());
+            e2.append(" ").append(outImg.getAbsolutePath());
+            List<String> e2cmd = Exec.cmd("sh", "-c", e2.toString());
+            int e2code = Exec.run(tools.libDir, p, e2cmd);
+            if (e2code != 0) p.log("警告: e2fsdroid 应用配置失败 (exit " + e2code + "), 镜像可能无法引导");
+        } else {
+            p.log("提示: 未找到 fs_config/contexts, 打包的镜像可能无法引导(请先解包再用打包功能)");
+        }
         p.log("ext4 镜像已生成 → " + outImg.getAbsolutePath());
     }
 }

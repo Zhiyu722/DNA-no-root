@@ -15,7 +15,8 @@ import java.io.InputStream;
 public final class Binaries {
 
     private static final String[] BINARIES = {
-            "debugfs", "mke2fs", "brotli", "lz4", "dump.erofs", "fsck.erofs", "payload-dumper-go",
+            "debugfs", "mke2fs", "brotli", "lz4", "magiskboot", "e2fsdroid",
+            "lpmake", "extract.erofs", "make_ext4fs", "payload-dumper-go",
     };
 
     private static final String[] LIBS = {
@@ -37,7 +38,11 @@ public final class Binaries {
                 new File(dir, "mke2fs"),
                 new File(dir, "brotli"),
                 new File(dir, "lz4"),
-                new File(dir, "dump.erofs"),
+                new File(dir, "magiskboot"),
+                new File(dir, "e2fsdroid"),
+                new File(dir, "lpmake"),
+                new File(dir, "extract.erofs"),
+                new File(dir, "make_ext4fs"),
                 new File(dir, "payload-dumper-go"),
                 libDir);
 

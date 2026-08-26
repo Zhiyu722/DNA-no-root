@@ -9,17 +9,16 @@ public final class ErofsTool {
 
     private ErofsTool() {}
 
-    /** 解包 erofs 镜像到 outDir(fsck.erofs --extract 保留目录结构与权限)。 */
+    /** 解包 erofs 镜像到 outDir(extract.erofs 来自 TIK5, 完整保留目录结构)。 */
     public static void extract(File img, File outDir, ToolPaths tools, Progress p) throws IOException {
-        File fsck = new File(tools.debugfs.getParentFile(), "fsck.erofs");
-        if (!fsck.exists()) throw new IOException("缺少 fsck.erofs 工具");
+        if (!tools.extractErofs.exists()) throw new IOException("缺少 extract.erofs 工具");
         if (!outDir.exists() && !outDir.mkdirs()) throw new IOException("无法创建目录: " + outDir);
-        p.log("调用 fsck.erofs 提取 erofs 文件系统 ...");
-        List<String> cmd = Exec.cmd(fsck.getAbsolutePath(),
-                "--extract=" + outDir.getAbsolutePath(),
+        p.log("调用 extract.erofs 提取 erofs 文件系统 ...");
+        List<String> cmd = Exec.cmd(tools.extractErofs.getAbsolutePath(),
+                "-x", outDir.getAbsolutePath(),
                 img.getAbsolutePath());
         int code = Exec.run(tools.libDir, p, cmd);
-        if (code != 0) throw new IOException("fsck.erofs 提取失败 (exit " + code + ")");
+        if (code != 0) throw new IOException("extract.erofs 提取失败 (exit " + code + ")");
         p.log("erofs 提取完成 → " + outDir.getAbsolutePath());
     }
 }

@@ -275,7 +275,7 @@ public final class DnaEngine {
     /** 解包目录 → boot 镜像 */
     public static void packBoot(File bootDir, File outImg, ToolPaths tools, Progress p) throws IOException {
         p.log("══ 打包: " + bootDir.getName() + " → boot.img ══");
-        BootImage.pack(bootDir, outImg, p);
+        BootImage.pack(bootDir, outImg, tools, p);
         p.done(true, "打包完成 → " + outImg.getAbsolutePath());
     }
 
