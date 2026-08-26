@@ -29,7 +29,7 @@ aapt2 link -o "$OUT/base.apk" \
     -I "$ANDROID_JAR" \
     --manifest "$MANIFEST" \
     --java "$GEN" \
-    --min-sdk-version 26 --target-sdk-version 34 \
+    --min-sdk-version 21 --target-sdk-version 34 \
     -A assets \
     "$OUT/res.zip"
 
@@ -62,8 +62,8 @@ if [ ! -f "$KSTORE" ]; then
         -dname "CN=DNA Unpacker, OU=DNA, O=zhiyu, C=CN" 2>/dev/null
 fi
 apksigner sign --ks "$KSTORE" --ks-pass "pass:$KSPASS" \
-    --out "$OUT/DNA-解包助手-v1.0.apk" "$OUT/unsigned.apk"
+    --out "$OUT/DNA-No-ROOT-V2.0.apk" "$OUT/unsigned.apk"
 
 echo ""
-echo "APK: $OUT/DNA-解包助手-v1.0.apk"
-ls -lh "$OUT/DNA-解包助手-v1.0.apk"
+echo "APK: $OUT/DNA-No-ROOT-V2.0.apk"
+ls -lh "$OUT/DNA-No-ROOT-V2.0.apk"
