@@ -52,10 +52,32 @@ public final class Ext4Tool {
                             && !line.contains("dump_file:")
                             && !line.contains("Error while writing"));
             if (code != 0) throw new IOException("debugfs 提取失败 (exit " + code + ")");
+            // 记录原镜像大小, 供重新打包时保持原大小
+            try {
+                Io.writeFile(new File(outDir, "__image_size.txt"),
+                        String.valueOf(raw.length()).getBytes());
+            } catch (Exception ignored) {}
             p.log("ext4 提取完成 → " + rdumpDir.getAbsolutePath());
         } finally {
             if (tempRaw != null) Io.deleteRecursive(tempRaw);
         }
+    }
+
+    /** 从源目录向上查找解包时记录的原镜像大小; 找不到则返回 calcSize。 */
+    private static long findOrigSize(File srcDir, long calcSize) {
+        File d = srcDir;
+        for (int i = 0; i < 6 && d != null; i++) { // 最多向上找 6 层
+            File f = new File(d, "__image_size.txt");
+            if (f.exists()) {
+                try {
+                    String t = new String(java.nio.file.Files.readAllBytes(f.toPath())).trim();
+                    long v = Long.parseLong(t);
+                    if (v > 0) return (v + 4095) / 4096 * 4096;
+                } catch (Exception ignored) {}
+            }
+            d = d.getParentFile();
+        }
+        return calcSize;
     }
 
     /** 打包目录为 ext4 镜像(含 fs_config 与 selinux 上下文, 解包→打包可引导)。 */
@@ -64,9 +86,15 @@ public final class Ext4Tool {
         if (!srcDir.isDirectory()) throw new IOException("源目录无效: " + srcDir);
         long fileSize = Io.filesSize(srcDir);
         if (fileSize == 0) throw new IOException("源目录为空");
-        long size = fileSize * 12 / 10 + (20L << 20); // 1.2x + 20MB 余量
-        size = (size + 4095) / 4096 * 4096;
-        if (size < (64L << 20)) size = 64L << 20;
+        long calcSize = fileSize * 12 / 10 + (20L << 20); // 1.2x + 20MB 余量
+        calcSize = (calcSize + 4095) / 4096 * 4096;
+        if (calcSize < (64L << 20)) calcSize = 64L << 20;
+        // 优先使用原镜像大小(解包时记录), 保证打包后大小与原版一致
+        long size = findOrigSize(srcDir, calcSize);
+        size = Math.max(size, calcSize);
+        if (size != calcSize) {
+            p.log("使用原镜像大小: " + (size / 1048576) + " MB");
+        }
 
         p.log("计算大小: 文件 " + (fileSize / 1048576) + " MB → 镜像 " + (size / 1048576) + " MB");
         p.log("调用 mke2fs 生成 ext4 ...");
