@@ -20,20 +20,8 @@ public final class BootImage {
         p.log("调用 magiskboot unpack ...");
         List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
                 "unpack", "-h", img.getAbsolutePath());
-        runInDir(cmd, img.getParentFile(), tools.libDir, p);
-
-        // 移动输出到 outDir
-        String[] outputs = {"kernel", "ramdisk.cpio", "ramdisk.cpio.lz4", "ramdisk.cpio.gz",
-                "second", "dtb", "dtbo", "recovery_dtbo", "header",
-                "kernel_dtb", "extra", "signature"};
-        File imgDir = img.getParentFile();
-        for (String name : outputs) {
-            File f = new File(imgDir, name);
-            if (f.exists() && f.length() > 0) {
-                File dest = new File(outDir, name);
-                if (!dest.exists()) f.renameTo(dest);
-            }
-        }
+        // 在 outDir 中运行: magiskboot 输出直接落在 outDir, 不污染镜像所在目录
+        runInDir(cmd, outDir, tools.libDir, p);
 
         // 解压 ramdisk
         File ramdiskDir = new File(outDir, "ramdisk");
@@ -66,43 +54,73 @@ public final class BootImage {
     }
 
     private static void extractCpio(File cpio, File dir, ToolPaths tools, Progress p) throws IOException {
-        // 用 magiskboot cpio 提取
         List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
                 "cpio", cpio.getAbsolutePath(), "extract");
         runInDir(cmd, dir, tools.libDir, p);
     }
 
-    /** 打包 boot 镜像: 从解包目录还原(magiskboot repack) */
+    /** 打包 boot 镜像: 从解包目录还原(magiskboot repack)。自动查找含 kernel 的子目录。 */
     public static void pack(File bootDir, File outImg, ToolPaths tools, Progress p) throws IOException {
         if (!bootDir.isDirectory()) throw new IOException("boot 目录无效: " + bootDir);
-        File kernel = new File(bootDir, "kernel");
+        File realDir = findBootDir(bootDir);
+        if (realDir == null) {
+            throw new IOException("未找到 kernel 文件: 请选择解包 boot 后生成的目录"
+                    + "(内含 kernel、ramdisk 等文件)");
+        }
+        if (realDir != bootDir) {
+            p.log("自动定位到解包目录: " + realDir.getAbsolutePath());
+        }
+        File kernel = new File(realDir, "kernel");
         if (!kernel.exists()) throw new IOException("缺少 kernel 文件");
 
         // 还原 ramdisk 目录 → cpio
-        File ramdiskDir = new File(bootDir, "ramdisk");
-        File ramdiskCpio = new File(bootDir, "ramdisk.cpio");
-        if (ramdiskDir.isDirectory() && !ramdiskCpio.exists()) {
+        File ramdiskDir = new File(realDir, "ramdisk");
+        File ramdiskCpio = new File(realDir, "ramdisk.cpio");
+        File ramdiskGz = new File(realDir, "ramdisk.cpio.gz");
+        File ramdiskLz4 = new File(realDir, "ramdisk.cpio.lz4");
+        boolean hasRamdiskBlob = ramdiskCpio.exists() || ramdiskGz.exists() || ramdiskLz4.exists();
+        if (ramdiskDir.isDirectory() && !hasRamdiskBlob) {
             p.log("打包 ramdisk 目录 → cpio ...");
-            // magiskboot cpio 打包: 从目录创建 cpio
-            List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
-                    "cpio", new File(bootDir, "ramdisk.cpio.tmp").getAbsolutePath(), "add");
-            // 简化: 用 cpio 命令
-            List<String> cmds = Exec.cmd("cpio",
-                    "-o", "-H", "newc", "-O", ramdiskCpio.getAbsolutePath());
-            runInDir(cmds, ramdiskDir, tools.libDir, p);
+            // 用内置 cpio(newc)打包目录
+            String prefix = tools.magiskboot.getParent();
+            File cpioBin = new File(prefix, "cpio");
+            if (cpioBin.exists()) {
+                List<String> cmds = Exec.cmd(cpioBin.getAbsolutePath(),
+                        "-o", "-H", "newc", "-O", ramdiskCpio.getAbsolutePath());
+                runInDir(cmds, ramdiskDir, tools.libDir, p);
+            } else {
+                // 没有 cpio 时用 magiskboot cpio
+                List<String> cmds = Exec.cmd(tools.magiskboot.getAbsolutePath(),
+                        "cpio", ramdiskCpio.getAbsolutePath(), "add");
+                runInDir(cmds, ramdiskDir, tools.libDir, p);
+            }
             if (ramdiskCpio.exists()) p.log("ramdisk cpio 打包完成");
         }
 
         // 用 magiskboot repack 生成最终 boot
         p.log("调用 magiskboot repack ...");
         List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
-                "repack", "-n", bootDir.getAbsolutePath(), outImg.getAbsolutePath());
+                "repack", "-n", realDir.getAbsolutePath(), outImg.getAbsolutePath());
         int rc = Exec.run(tools.libDir, p, cmd);
         if (rc != 0) throw new IOException("magiskboot repack 失败 (exit " + rc + ")");
 
-        File newBoot = new File(bootDir, "new-boot.img");
-        if (newBoot.exists()) newBoot.renameTo(outImg);
+        File newBoot = new File(realDir, "new-boot.img");
+        if (newBoot.exists()) {
+            newBoot.renameTo(outImg);
+        }
         p.log("boot 打包完成 → " + outImg.getAbsolutePath());
+    }
+
+    /** 在指定目录或其一级子目录中查找含 kernel 的 boot 解包目录。 */
+    private static File findBootDir(File dir) {
+        if (new File(dir, "kernel").isFile()) return dir;
+        File[] subs = dir.listFiles();
+        if (subs != null) {
+            for (File sub : subs) {
+                if (sub.isDirectory() && new File(sub, "kernel").isFile()) return sub;
+            }
+        }
+        return null;
     }
 
     private static void runInDir(List<String> cmd, File dir, File libDir, Progress p) throws IOException {
