@@ -877,6 +877,15 @@ public class MainActivity extends Activity {
                         uiProgress(unpackLog, "解包"));
             } catch (Exception e) {
                 post(() -> unpackLog.append("[失败] " + e.getMessage()));
+                try {
+                    java.io.StringWriter sw = new java.io.StringWriter();
+                    e.printStackTrace(new java.io.PrintWriter(sw));
+                    File crash = new File(Binaries.defaultOutDir(MainActivity.this).getParentFile(), "unpack_error.log");
+                    crash.getParentFile().mkdirs();
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(crash);
+                    fos.write(sw.toString().getBytes());
+                    fos.close();
+                } catch (Exception ignore) {}
             }
         });
     }

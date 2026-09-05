@@ -10,6 +10,9 @@ import java.util.List;
 /**
  * 执行外部进程(内置原生工具)的工具类。
  * 设置 LD_LIBRARY_PATH 指向捆绑的动态库目录, 使 termux 编译的二进制在 App 内可运行。
+ *
+ * 兼容性: 某些 ROM 对应用直接 exec 自家 files 目录下的二进制有限制(execve 返回 EACCES),
+ * 此时自动回退到 /system/bin/sh -c 方式执行, 并保留 LD_LIBRARY_PATH。
  */
 public final class Exec {
 
@@ -23,7 +26,41 @@ public final class Exec {
     /** 执行命令, 可过滤不需要展示的输出行(如 chown 警告)。 */
     public static int run(File libDir, Progress p, List<String> cmd,
                           java.util.function.Predicate<String> lineFilter) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder(cmd);
+        try {
+            return runInternal(libDir, p, cmd, lineFilter, false);
+        } catch (IOException e) {
+            // 直接 exec 被 ROM 拒绝(EACCES)时, 尝试通过 /system/bin/sh 执行
+            if (e.getMessage() != null && e.getMessage().contains("error=13")) {
+                try {
+                    return runInternal(libDir, p, cmd, lineFilter, true);
+                } catch (IOException e2) {
+                    throw new IOException("直接执行与 shell 执行均失败: " + e.getMessage()
+                            + " / " + e2.getMessage());
+                }
+            }
+            throw e;
+        }
+    }
+
+    private static int runInternal(File libDir, Progress p, List<String> cmd,
+                                   java.util.function.Predicate<String> lineFilter,
+                                   boolean viaShell) throws IOException {
+        if (cmd.isEmpty()) throw new IOException("空命令");
+        List<String> realCmd = cmd;
+        if (viaShell) {
+            // 通过 /system/bin/sh 执行, 规避部分 ROM 对 app exec 的限制
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < cmd.size(); i++) {
+                if (i > 0) sb.append(' ');
+                sb.append(quote(cmd.get(i)));
+            }
+            realCmd = new ArrayList<>();
+            realCmd.add("/system/bin/sh");
+            realCmd.add("-c");
+            realCmd.add(sb.toString());
+        }
+
+        ProcessBuilder pb = new ProcessBuilder(realCmd);
         if (libDir != null && libDir.isDirectory()) {
             String existing = System.getenv("LD_LIBRARY_PATH");
             pb.environment().put("LD_LIBRARY_PATH",
@@ -62,6 +99,12 @@ public final class Exec {
             Thread.currentThread().interrupt();
             return -1;
         }
+    }
+
+    /** 简单 shell 转义(处理路径含空格的情况)。 */
+    private static String quote(String s) {
+        if (s.indexOf(' ') < 0 && s.indexOf('\'') < 0 && s.indexOf('"') < 0) return s;
+        return "'" + s.replace("'", "'\\''") + "'";
     }
 
     public static int runQuiet(File libDir, List<String> cmd) throws IOException {
