@@ -22,6 +22,10 @@ public final class BootImage {
                 "unpack", "-h", img.getAbsolutePath());
         // 在 outDir 中运行: magiskboot 输出直接落在 outDir, 不污染镜像所在目录
         runInDir(cmd, outDir, tools.libDir, p);
+        // 记录原始 boot 镜像路径, 供 repack 使用(magiskboot repack 需要原始镜像取头部)
+        try {
+            Io.writeFile(new File(outDir, "__orig_boot.txt"), img.getAbsolutePath().getBytes());
+        } catch (Exception ignored) {}
 
         // 解压 ramdisk
         File ramdiskDir = new File(outDir, "ramdisk");
@@ -99,16 +103,47 @@ public final class BootImage {
 
         // 用 magiskboot repack 生成最终 boot
         p.log("调用 magiskboot repack ...");
-        List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
-                "repack", "-n", realDir.getAbsolutePath(), outImg.getAbsolutePath());
-        int rc = Exec.run(tools.libDir, p, cmd);
-        if (rc != 0) throw new IOException("magiskboot repack 失败 (exit " + rc + ")");
+        File origBoot = readOrigBoot(realDir);
+        if (origBoot != null && origBoot.isFile()) {
+            p.log("使用原镜像头部: " + origBoot.getName());
+            List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
+                    "repack", "-n", origBoot.getAbsolutePath(), outImg.getAbsolutePath());
+            int rc = runInDirGetCode(cmd, realDir, tools.libDir, p);
+            if (rc != 0) throw new IOException("magiskboot repack 失败 (exit " + rc + ")");
+        } else {
+            p.log("未找到原始 boot 镜像, 使用目录方式 repack ...");
+            List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
+                    "repack", "-n", realDir.getAbsolutePath(), outImg.getAbsolutePath());
+            int rc = Exec.run(tools.libDir, p, cmd);
+            if (rc != 0) throw new IOException("magiskboot repack 失败 (exit " + rc + ")");
+        }
 
         File newBoot = new File(realDir, "new-boot.img");
         if (newBoot.exists()) {
             newBoot.renameTo(outImg);
         }
         p.log("boot 打包完成 → " + outImg.getAbsolutePath());
+    }
+
+    /** 读取解包时记录的原镜像路径; 找不到返回 null。 */
+    private static File readOrigBoot(File dir) {
+        File f = new File(dir, "__orig_boot.txt");
+        if (!f.exists()) return null;
+        try {
+            String p = new String(java.nio.file.Files.readAllBytes(f.toPath())).trim();
+            if (!p.isEmpty()) return new File(p);
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    /** 在指定目录运行命令并返回退出码(不抛异常)。 */
+    private static int runInDirGetCode(List<String> cmd, File dir, File libDir, Progress p) {
+        try {
+            runInDir(cmd, dir, libDir, p);
+            return 0;
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     /** 在指定目录或其一级子目录中查找含 kernel 的 boot 解包目录。 */
