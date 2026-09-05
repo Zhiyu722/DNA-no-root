@@ -19,6 +19,11 @@ public final class Binaries {
             "lpmake", "extract.erofs", "make_ext4fs", "payload-dumper-go",
     };
 
+    /** 随包分发的配置文件(也解压到 bin 目录) */
+    private static final String[] CONFIGS = {
+            "mke2fs.conf",
+    };
+
     private static final String[] LIBS = {
             "libblkid.so", "libuuid.so", "libandroid-posix-semaphore.so",
             "libbrotlienc.so", "libbrotlidec.so", "libbrotlicommon.so",
@@ -70,6 +75,9 @@ public final class Binaries {
             if (log != null) log.log("首次运行: 释放内置引擎工具 ...");
             for (String b : BINARIES) {
                 extract(ctx, "bin/" + b, new File(dir, b), log);
+            }
+            for (String c : CONFIGS) {
+                extract(ctx, "bin/" + c, new File(dir, c), log);
             }
             for (String l : LIBS) {
                 extract(ctx, "bin/lib/" + l, new File(libDir, l), log);
