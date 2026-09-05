@@ -17,6 +17,12 @@ public final class Exec {
 
     /** 执行命令, 实时回传 stdout/stderr 到 Progress.log, 返回退出码。 */
     public static int run(File libDir, Progress p, List<String> cmd) throws IOException {
+        return run(libDir, p, cmd, null);
+    }
+
+    /** 执行命令, 可过滤不需要展示的输出行(如 chown 警告)。 */
+    public static int run(File libDir, Progress p, List<String> cmd,
+                          java.util.function.Predicate<String> lineFilter) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(cmd);
         if (libDir != null && libDir.isDirectory()) {
             String existing = System.getenv("LD_LIBRARY_PATH");
@@ -38,7 +44,10 @@ public final class Exec {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                 String line;
                 while ((line = br.readLine()) != null) {
-                    if (p != null && !line.trim().isEmpty()) p.log("  " + line.trim());
+                    String t = line.trim();
+                    if (t.isEmpty()) continue;
+                    if (lineFilter != null && !lineFilter.test(t)) continue;
+                    if (p != null) p.log("  " + t);
                 }
             } catch (IOException ignored) {}
         });

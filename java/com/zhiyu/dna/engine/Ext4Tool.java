@@ -44,7 +44,13 @@ public final class Ext4Tool {
             List<String> cmd = Exec.cmd(tools.debugfs.getAbsolutePath(),
                     "-R", "rdump / " + rdumpDir.getAbsolutePath(),
                     raw.getAbsolutePath());
-            int code = Exec.run(tools.libDir, p, cmd);
+            // 过滤无 root 时的 chown 警告(不影响提取结果, 避免日志刷屏)
+            int code = Exec.run(tools.libDir, p, cmd, line ->
+                    !line.contains("Operation not permitted")
+                            && !line.contains("changing ownership")
+                            && !line.contains("rdump:")
+                            && !line.contains("dump_file:")
+                            && !line.contains("Error while writing"));
             if (code != 0) throw new IOException("debugfs 提取失败 (exit " + code + ")");
             p.log("ext4 提取完成 → " + rdumpDir.getAbsolutePath());
         } finally {
