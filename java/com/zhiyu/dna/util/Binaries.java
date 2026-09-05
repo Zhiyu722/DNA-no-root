@@ -33,6 +33,19 @@ public final class Binaries {
         File libDir = new File(dir, "lib");
         dir.mkdirs();
         libDir.mkdirs();
+
+        // 版本变化时强制重新解压(重装后 SELinux 类别改变, 旧文件可能不可执行)
+        int curVersion = -1;
+        try {
+            curVersion = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionCode;
+        } catch (Exception ignored) {}
+        File verFile = new File(dir, ".version");
+        int oldVersion = -1;
+        if (verFile.exists()) {
+            try { oldVersion = Integer.parseInt(new String(java.nio.file.Files.readAllBytes(verFile.toPath())).trim()); }
+            catch (Exception ignored) {}
+        }
+        boolean versionChanged = oldVersion != curVersion;
         ToolPaths paths = new ToolPaths(
                 new File(dir, "debugfs"),
                 new File(dir, "mke2fs"),
@@ -46,10 +59,12 @@ public final class Binaries {
                 new File(dir, "payload-dumper-go"),
                 libDir);
 
-        boolean needExtract = false;
-        for (String b : BINARIES) {
-            File f = new File(dir, b);
-            if (!f.exists() || f.length() == 0) needExtract = true;
+        boolean needExtract = versionChanged;
+        if (!needExtract) {
+            for (String b : BINARIES) {
+                File f = new File(dir, b);
+                if (!f.exists() || f.length() == 0) { needExtract = true; break; }
+            }
         }
         if (needExtract || !new File(dir, "mke2fs").exists()) {
             if (log != null) log.log("首次运行: 释放内置引擎工具 ...");
@@ -59,6 +74,10 @@ public final class Binaries {
             for (String l : LIBS) {
                 extract(ctx, "bin/lib/" + l, new File(libDir, l), log);
             }
+        }
+        if (versionChanged) {
+            try { java.nio.file.Files.write(verFile.toPath(), String.valueOf(curVersion).getBytes()); }
+            catch (Exception ignored) {}
         }
         if (log != null) log.log("引擎工具就绪 ✓");
         return paths;
