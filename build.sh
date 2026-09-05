@@ -29,7 +29,7 @@ aapt2 link -o "$OUT/base.apk" \
     -I "$ANDROID_JAR" \
     --manifest "$MANIFEST" \
     --java "$GEN" \
-    --min-sdk-version 21 --target-sdk-version 34 \
+    --min-sdk-version 21 --target-sdk-version 27 \
     -A assets \
     "$OUT/res.zip"
 
