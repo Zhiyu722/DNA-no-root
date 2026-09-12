@@ -149,6 +149,13 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP);
         topLp.topMargin = (int) (dp(8) + statusBarHeight());
+        // 分辨率适配: 大屏时顶栏也限制宽度并居中
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int maxContentW = (int) (560 * getResources().getDisplayMetrics().density);
+        if (screenW > maxContentW) {
+            int sidePad = (screenW - maxContentW) / 2;
+            topArea.setPadding(sidePad + (int) dp(18), 0, sidePad + (int) dp(18), 0);
+        }
         root.addView(topArea, topLp);
 
         // 分页器
@@ -161,6 +168,18 @@ public class MainActivity extends Activity {
         pagerLp.topMargin = (int) (dp(96) + statusBarHeight());
         pagerLp.bottomMargin = (int) dp(40);
         root.addView(pager, pagerLp);
+
+        // 分辨率适配: 测量真实顶栏高度后动态设置分页器上边距(避免不同屏幕遮挡/错位)
+        topArea.post(() -> {
+            if (pager.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) pager.getLayoutParams();
+                int h = topArea.getHeight() + topArea.getTop() + (int) dp(6);
+                if (h > 0 && lp.topMargin != h) {
+                    lp.topMargin = h;
+                    pager.setLayoutParams(lp);
+                }
+            }
+        });
 
         pager.setOnPageChangedListener((index, pos) -> {
             boolean dragging = pager.isDragging();
@@ -180,7 +199,7 @@ public class MainActivity extends Activity {
         dots.setCount(3);
         FrameLayout.LayoutParams dotLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, (int) dp(12), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        dotLp.bottomMargin = (int) dp(12);
+        dotLp.bottomMargin = (int) (dp(12) + navBarHeight());
         root.addView(dots, dotLp);
 
         setContentView(root);
@@ -208,7 +227,13 @@ public class MainActivity extends Activity {
 
     private float statusBarHeight() {
         int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        return id > 0 ? getResources().getDimensionPixelSize(id) : dp(24);
+        return id > 0 ? getResources().getDimensionPixelSize(id) : (int) dp(24);
+    }
+
+    /** 导航栏/手势条高度, 用于底部留白适配 */
+    private int navBarHeight() {
+        int id = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : (int) dp(24);
     }
 
     private float dp(float v) {
@@ -425,8 +450,23 @@ public class MainActivity extends Activity {
     private View scrollWrap(View content) {
         ScrollView sv = new ScrollView(this);
         sv.setFillViewport(true);
-        sv.addView(content, new ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+        sv.setClipToPadding(false);
+        // 分辨率适配: 大屏(平板/横屏)限制内容宽度并居中, 避免元素被拉伸变形
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        float density = getResources().getDisplayMetrics().density;
+        int maxW = (int) (560 * density); // 内容最大宽度 560dp
+        if (screenW > maxW) {
+            FrameLayout wrap = new FrameLayout(this);
+            int sidePad = (screenW - maxW) / 2;
+            wrap.setPadding(sidePad, 0, sidePad, 0);
+            wrap.addView(content, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            sv.addView(wrap, new ScrollView.LayoutParams(
+                    ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+        } else {
+            sv.addView(content, new ScrollView.LayoutParams(
+                    ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
+        }
         return sv;
     }
 
