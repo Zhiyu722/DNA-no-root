@@ -27,6 +27,19 @@ public final class BootImage {
         try {
             Io.writeFile(new File(outDir, "__orig_boot.txt"), img.getAbsolutePath().getBytes());
         } catch (Exception ignored) {}
+        // 记录 ramdisk cpio 每个条目的原始元数据(权限/属主/软链), 打包时据此校验, 保证改动不出错
+        try {
+            File cpioFile = new File(outDir, "ramdisk.cpio");
+            if (cpioFile.exists()) {
+                java.util.List<CpioMeta.Entry> metas = CpioMeta.read(cpioFile);
+                CpioMeta.saveManifest(metas, new File(outDir, "__ramdisk_meta.txt"),
+                        new File(outDir, "ramdisk"));
+                p.log("已记录 ramdisk 元数据: " + metas.size() + " 个条目(权限/属主将被保留)");
+                int special = 0;
+                for (CpioMeta.Entry e : metas) if (e.type == 3) special++;
+                if (special > 0) p.log("  含 " + special + " 个特殊条目(设备节点等, 将原样保留)");
+            }
+        } catch (Exception ignored) {}
 
         // 解压 ramdisk
         File ramdiskDir = new File(outDir, "ramdisk");
@@ -123,8 +136,13 @@ public final class BootImage {
         if (!origDir.mkdirs()) throw new IOException("无法创建临时目录: " + origDir);
 
         // 1) 把原 cpio 解到临时目录(magiskboot extract 会还原文件权限)
-        runInDir(Exec.cmd(tools.magiskboot.getAbsolutePath(),
-                "cpio", cpio.getAbsolutePath(), "extract"), origDir, tools.libDir, p);
+        //    含设备节点等无法创建的特殊条目时 extract 可能返回非0, 这里容忍(已解出的部分足够比对)
+        try {
+            runInDir(Exec.cmd(tools.magiskboot.getAbsolutePath(),
+                    "cpio", cpio.getAbsolutePath(), "extract"), origDir, tools.libDir, p);
+        } catch (IOException e) {
+            p.log("提示: 部分特殊条目无法提取(设备节点等), 将原样保留在 cpio 中");
+        }
 
         // 2) 比对差异, 生成 magiskboot cpio 命令
         List<String> cmds = new ArrayList<>();
@@ -164,14 +182,14 @@ public final class BootImage {
                 }
             } else if (f.isDirectory()) {
                 if (!orig.isDirectory()) {
-                    cmds.add("mkdir " + mode(f) + " " + entry);
+                    cmds.add("mkdir " + resolveMode(ramdiskRoot, entry, f) + " " + entry);
                 }
                 diffEntries(orig, f, entry, cmds, ramdiskRoot);
             } else {
-                // 文件: 新增或内容变化时用 add 更新(mode 与原文件一致)
+                // 文件: 新增或内容变化时用 add 更新(权限由清单决定, 不受提取默认权限影响)
                 if (!orig.isFile() || orig.length() != f.length() || !sameContent(orig, f)) {
-                    String mode = orig.isFile() ? mode(orig) : mode(f);
-                    cmds.add("add " + mode + " " + entry + " " + f.getAbsolutePath());
+                    cmds.add("add " + resolveMode(ramdiskRoot, entry, f) + " "
+                            + entry + " " + f.getAbsolutePath());
                 }
             }
         }
@@ -230,6 +248,30 @@ public final class BootImage {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * 决定条目的权限(八进制字符串)。
+     * 依据解包时记录的清单: 若用户没有手动改过权限(磁盘权限 == 解包后权限),
+     * 则使用原 cpio 里的权限; 只有用户明确改过才用新权限。
+     * 这样 magiskboot 提取时把权限写成默认值(如 666)也不会破坏打包结果。
+     */
+    private static String resolveMode(File ramdiskRoot, String entry, File cur) {
+        int curMode = CpioMeta.modeOf(cur);
+        try {
+            File outDir = ramdiskRoot.getParentFile();
+            File mf = new File(outDir, "__ramdisk_meta.txt");
+            if (mf.exists()) {
+                for (CpioMeta.Entry e : CpioMeta.loadManifest(mf)) {
+                    if (!e.name.equals(entry)) continue;
+                    boolean userChanged = e.extractedMode >= 0 && curMode >= 0
+                            && (curMode & 07777) != (e.extractedMode & 07777);
+                    if (!userChanged) return String.format("0%03o", e.mode);   // 原 cpio 权限
+                    return String.format("0%03o", curMode);                    // 用户改过的权限
+                }
+            }
+        } catch (Exception ignored) {}
+        return String.format("0%03o", Math.max(0, curMode));   // 新文件: 用当前权限
     }
 
     /** 读取解包时记录的原镜像路径; 找不到返回 null。 */
