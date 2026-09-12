@@ -698,36 +698,189 @@ public class MainActivity extends Activity {
     // ================= 文件选择 =================
 
     private void pickInputFile() {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("*/*");
-        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
-        try {
-            startActivityForResult(i, REQ_INPUT_FILE);
-        } catch (Exception e) {
-            toast("无法打开文件选择器");
-        }
+        // 优先使用内置文件浏览器(直接得到真实路径, 避免 SAF content:// 解析问题)
+        showFileBrowser(new File(Environment.getExternalStorageDirectory(), "Download"),
+                file -> {
+                    if (file != null) {
+                        inputPathEt.setText(file.getAbsolutePath());
+                        updateTypeLabel(file.getAbsolutePath());
+                    }
+                });
+    }
+
+    /** 内置文件浏览器: 列出目录, 点文件即选中(返回真实路径)。 */
+    private void showFileBrowser(File startDir, java.util.function.Consumer<File> onPick) {
+        File dir = (startDir != null && startDir.isDirectory()) ? startDir
+                : Environment.getExternalStorageDirectory();
+        final File[] cur = {dir};
+        final android.widget.LinearLayout list = new android.widget.LinearLayout(this);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        final android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(list);
+        final android.widget.TextView title = new android.widget.TextView(this);
+        title.setPadding((int) dp(16), (int) dp(12), (int) dp(16), (int) dp(8));
+        title.setTextSize(14);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setTextColor(0xFF14191C);
+        final android.widget.LinearLayout wrap = new android.widget.LinearLayout(this);
+        wrap.setOrientation(android.widget.LinearLayout.VERTICAL);
+        wrap.addView(title);
+        wrap.addView(sv, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(360)));
+        final android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this)
+                .setView(wrap)
+                .setNegativeButton("取消", null)
+                .create();
+        final Runnable[] refresh = new Runnable[1];
+        refresh[0] = () -> {
+            list.removeAllViews();
+            File d = cur[0];
+            title.setText(d.getAbsolutePath());
+            // 上一级
+            File parent = d.getParentFile();
+            if (parent != null) {
+                android.widget.TextView up = browserRow("⬆  ..  上一级", 0xFF007FFF);
+                up.setOnClickListener(v -> { cur[0] = parent; refresh[0].run(); });
+                list.addView(up);
+            }
+            File[] items = d.listFiles();
+            if (items == null) return;
+            java.util.Arrays.sort(items, (a, b) -> {
+                if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
+                return a.getName().compareToIgnoreCase(b.getName());
+            });
+            int dirs = 0;
+            for (File f : items) {
+                if (f.isDirectory()) { dirs++; if (dirs > 300) break; }
+            }
+            for (File f : items) {
+                if (f.isDirectory()) {
+                    android.widget.TextView tv = browserRow("📁  " + f.getName(), 0xFF14191C);
+                    final File fd = f;
+                    tv.setOnClickListener(v -> { cur[0] = fd; refresh[0].run(); });
+                    list.addView(tv);
+                }
+            }
+            for (File f : items) {
+                if (f.isFile()) {
+                    String n = f.getName();
+                    boolean interesting = n.endsWith(".img") || n.endsWith(".bin")
+                            || n.endsWith(".dat") || n.endsWith(".br") || n.endsWith(".zip")
+                            || n.endsWith(".gz") || n.endsWith(".lz4") || n.endsWith(".raw");
+                    android.widget.TextView tv = browserRow(
+                            (interesting ? "📦  " : "📄  ") + n + "   " + (f.length() / 1048576) + "MB",
+                            interesting ? 0xFF007FFF : 0xFF6B7280);
+                    final File ff = f;
+                    tv.setOnClickListener(v -> {
+                        dlg.dismiss();
+                        onPick.accept(ff);
+                    });
+                    list.addView(tv);
+                }
+            }
+        };
+        refresh[0].run();
+        dlg.show();
+    }
+
+    private android.widget.TextView browserRow(String text, int color) {
+        android.widget.TextView tv = new android.widget.TextView(this);
+        tv.setText(text);
+        tv.setTextSize(13.5f);
+        tv.setTextColor(color);
+        tv.setSingleLine(true);
+        tv.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        tv.setPadding((int) dp(16), (int) dp(11), (int) dp(16), (int) dp(11));
+        tv.setBackgroundColor(0x08FFFFFF);
+        return tv;
     }
 
     private void pickOutputDir() {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        try {
-            startActivityForResult(i, REQ_OUTPUT_DIR);
-        } catch (Exception e) {
-            toast("无法打开目录选择器");
-        }
+        // 内置目录选择器(目录树浏览)
+        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
+            if (dir != null) outPathEt.setText(dir.getAbsolutePath());
+        });
+    }
+
+    /** 内置目录浏览器: 只选目录。 */
+    private void showDirBrowser(File startDir, java.util.function.Consumer<File> onPick) {
+        File dir = (startDir != null && startDir.isDirectory()) ? startDir
+                : Environment.getExternalStorageDirectory();
+        final File[] cur = {dir};
+        final android.widget.LinearLayout list = new android.widget.LinearLayout(this);
+        list.setOrientation(android.widget.LinearLayout.VERTICAL);
+        final android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(list);
+        final android.widget.TextView title = new android.widget.TextView(this);
+        title.setPadding((int) dp(16), (int) dp(12), (int) dp(16), (int) dp(8));
+        title.setTextSize(14);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title.setTextColor(0xFF14191C);
+        final android.widget.LinearLayout wrap = new android.widget.LinearLayout(this);
+        wrap.setOrientation(android.widget.LinearLayout.VERTICAL);
+        wrap.addView(title);
+        wrap.addView(sv, new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(360)));
+        final android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this)
+                .setView(wrap)
+                .setPositiveButton("选择此目录", (d, w) -> onPick.accept(cur[0]))
+                .setNegativeButton("取消", null)
+                .create();
+        final Runnable[] refresh = new Runnable[1];
+        refresh[0] = () -> {
+            list.removeAllViews();
+            File d = cur[0];
+            title.setText(d.getAbsolutePath());
+            File parent = d.getParentFile();
+            if (parent != null) {
+                android.widget.TextView up = browserRow("⬆  ..  上一级", 0xFF007FFF);
+                up.setOnClickListener(v -> { cur[0] = parent; refresh[0].run(); });
+                list.addView(up);
+            }
+            File[] items = d.listFiles();
+            if (items == null) return;
+            java.util.Arrays.sort(items, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+            for (File f : items) {
+                if (!f.isDirectory()) continue;
+                android.widget.TextView tv = browserRow("📁  " + f.getName(), 0xFF14191C);
+                final File fd = f;
+                tv.setOnClickListener(v -> { cur[0] = fd; refresh[0].run(); });
+                list.addView(tv);
+            }
+        };
+        refresh[0].run();
+        dlg.show();
     }
 
     private void pickPackSrc() {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        try {
-            startActivityForResult(i, REQ_OUTPUT_DIR + 10);
-        } catch (Exception e) {
-            toast("无法打开目录选择器");
-        }
+        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
+            if (dir != null) packSrcEt.setText(dir.getAbsolutePath());
+        });
     }
 
     private void pickPackOut() {
+        // 内置: 选目录 + 输入文件名
+        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
+            if (dir == null) return;
+            final EditText et = glassEdit();
+            et.setHint("文件名, 如 vendor_new.img");
+            String cur = packOutEt.getText().toString().trim();
+            if (cur.isEmpty()) et.setText("output.img");
+            else et.setText(new File(cur).getName());
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("保存到: " + dir.getAbsolutePath())
+                    .setView(et)
+                    .setPositiveButton("确定", (d, w) -> {
+                        String name = et.getText().toString().trim();
+                        if (name.isEmpty()) name = "output.img";
+                        packOutEt.setText(new File(dir, name).getAbsolutePath());
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+        });
+    }
+
+    private void pickPackOutLegacy() {
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("application/octet-stream");
