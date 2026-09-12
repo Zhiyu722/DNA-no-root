@@ -697,8 +697,32 @@ public class MainActivity extends Activity {
 
     // ================= 文件选择 =================
 
+    /** 浏览: 弹选择方式(系统文件选择器 / 内置浏览器) */
     private void pickInputFile() {
-        // 优先使用内置文件浏览器(直接得到真实路径, 避免 SAF content:// 解析问题)
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("选择文件")
+                .setItems(new String[]{"系统文件选择器", "内置文件浏览器(推荐, 路径更准)"}, (d, w) -> {
+                    if (w == 0) pickInputFileSystem();
+                    else pickInputFileBuiltIn();
+                })
+                .show();
+    }
+
+    /** 系统文件选择器(SAF) */
+    private void pickInputFileSystem() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("*/*");
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false);
+        try {
+            startActivityForResult(i, REQ_INPUT_FILE);
+        } catch (Exception e) {
+            toast("无法打开系统文件选择器");
+        }
+    }
+
+    /** 内置文件浏览器 */
+    private void pickInputFileBuiltIn() {
         showFileBrowser(new File(Environment.getExternalStorageDirectory(), "Download"),
                 file -> {
                     if (file != null) {
@@ -796,10 +820,21 @@ public class MainActivity extends Activity {
     }
 
     private void pickOutputDir() {
-        // 内置目录选择器(目录树浏览)
-        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
-            if (dir != null) outPathEt.setText(dir.getAbsolutePath());
-        });
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("选择输出目录")
+                .setItems(new String[]{"系统目录选择器", "内置目录浏览器(推荐)"}, (d, w) -> {
+                    if (w == 0) {
+                        try {
+                            startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE),
+                                    REQ_OUTPUT_DIR);
+                        } catch (Exception e) { toast("无法打开目录选择器"); }
+                    } else {
+                        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
+                            if (dir != null) outPathEt.setText(dir.getAbsolutePath());
+                        });
+                    }
+                })
+                .show();
     }
 
     /** 内置目录浏览器: 只选目录。 */
@@ -853,13 +888,34 @@ public class MainActivity extends Activity {
     }
 
     private void pickPackSrc() {
-        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
-            if (dir != null) packSrcEt.setText(dir.getAbsolutePath());
-        });
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("选择源目录")
+                .setItems(new String[]{"系统目录选择器", "内置目录浏览器(推荐)"}, (d, w) -> {
+                    if (w == 0) {
+                        try {
+                            startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE),
+                                    REQ_OUTPUT_DIR + 10);
+                        } catch (Exception e) { toast("无法打开目录选择器"); }
+                    } else {
+                        showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
+                            if (dir != null) packSrcEt.setText(dir.getAbsolutePath());
+                        });
+                    }
+                })
+                .show();
     }
 
     private void pickPackOut() {
-        // 内置: 选目录 + 输入文件名
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("选择输出文件")
+                .setItems(new String[]{"系统保存对话框", "内置(选目录+输文件名)"}, (d, w) -> {
+                    if (w == 0) pickPackOutLegacy();
+                    else pickPackOutBuiltIn();
+                })
+                .show();
+    }
+
+    private void pickPackOutBuiltIn() {
         showDirBrowser(Environment.getExternalStorageDirectory(), dir -> {
             if (dir == null) return;
             final EditText et = glassEdit();
@@ -915,10 +971,23 @@ public class MainActivity extends Activity {
         }
         if (resultCode != RESULT_OK || data == null) return;
         try {
-            if (requestCode == REQ_INPUT_FILE && data.getData() != null) {
-                String path = resolvePath(data.getData());
-                inputPathEt.setText(path);
-                updateTypeLabel(path);
+            if (requestCode == REQ_INPUT_FILE) {
+                Uri uri = data.getData();
+                if (uri == null && data.getClipData() != null && data.getClipData().getItemCount() > 0) {
+                    uri = data.getClipData().getItemAt(0).getUri();
+                }
+                if (uri != null) {
+                    String path = resolvePath(uri);
+                    String name = queryDisplayName(uri);
+                    // 拿不到真实路径时, 输入框显示文件名(而不是空白/难看的 URI)
+                    if (path != null && path.startsWith("content://")) {
+                        inputPathEt.setText(path);
+                        if (name != null) inputPathEt.setHint(name);
+                    } else {
+                        inputPathEt.setText(path != null ? path : "");
+                    }
+                    updateTypeLabel(path != null ? path : "");
+                }
             } else if (requestCode == REQ_OUTPUT_DIR && data.getData() != null) {
                 String path = resolveTreePath(data.getData());
                 if (path != null) outPathEt.setText(path);
@@ -932,6 +1001,18 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             toast("解析路径失败: " + e.getMessage());
         }
+    }
+
+    /** 查询 SAF 文件的显示名 */
+    private String queryDisplayName(Uri uri) {
+        try (android.database.Cursor c = getContentResolver().query(uri,
+                new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) return c.getString(idx);
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     /** 把 content:// 解析为真实路径(多级兜底)。 */
