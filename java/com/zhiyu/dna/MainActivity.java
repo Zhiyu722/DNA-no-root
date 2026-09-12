@@ -607,9 +607,15 @@ public class MainActivity extends Activity {
     private void checkStoragePermission() {
         // 首次进入自动申请文件权限
         if (Build.VERSION.SDK_INT >= 30) {
-            // 先实际探测 /sdcard 是否可读写(Android 11 的 legacy 访问也能通过, 避免误弹授权页)
+            // Android 11+: 先申请存储权限(targetSdk 27 走 legacy 通路), 再探测可写性
+            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM_LEGACY);
+            }
             if (!canWriteSdcard() && !Environment.isExternalStorageManager()) {
-                autoRequestAllFiles();
+                autoRequestAllFiles();   // 仍不可写才跳「所有文件访问」授权页
                 showPermissionBanner();
             }
         } else if (Build.VERSION.SDK_INT >= 23) {
@@ -1204,7 +1210,9 @@ public class MainActivity extends Activity {
                 if (inPath.startsWith("content://") || !inFile.exists()) {
                     post(() -> unpackLog.append("SAF 文件无法直接定位, 复制到缓存处理..."));
                     Uri uri = Uri.parse(inPath);
-                    File cache = new File(getCacheDir(), "input_" + System.currentTimeMillis());
+                    String dn = queryDisplayName(uri);
+                    if (dn == null || dn.isEmpty()) dn = "input_" + System.currentTimeMillis();
+                    File cache = new File(getCacheDir(), dn);
                     try (java.io.InputStream is = getContentResolver().openInputStream(uri);
                          java.io.FileOutputStream fos = new java.io.FileOutputStream(cache)) {
                         byte[] buf = new byte[1 << 16];
@@ -1214,10 +1222,20 @@ public class MainActivity extends Activity {
                     inFile = cache;
                 }
                 post(() -> unpackLog.append("正在解包, 请稍候..."));
-                DnaEngine.unpack(inFile, new File(out), autoPartsSw.isChecked(), tt,
+                File outDir = new File(out);
+                // 输出目录无法创建时, 自动回退到默认目录 /sdcard/DNA/out
+                if (!outDir.exists() && !outDir.mkdirs()) {
+                    File fallback = Binaries.defaultOutDir(MainActivity.this);
+                    if (fallback.mkdirs() || fallback.exists()) {
+                        post(() -> unpackLog.append("⚠ 输出目录不可写, 已改用默认目录: " + fallback));
+                        outDir = fallback;
+                    }
+                }
+                DnaEngine.unpack(inFile, outDir, autoPartsSw.isChecked(), tt,
                         uiProgress(unpackLog, "解包"));
+                final String finalOut = outDir.getAbsolutePath();
                 post(() -> {
-                    unpackLog.append("【解包完成】输出目录: " + out);
+                    unpackLog.append("【解包完成】输出目录: " + finalOut);
                     toast("解包完成 ✓");
                 });
             } catch (Exception e) {

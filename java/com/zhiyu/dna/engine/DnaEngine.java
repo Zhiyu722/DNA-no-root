@@ -26,7 +26,18 @@ public final class DnaEngine {
     public static void unpack(File input, File outRoot, boolean unpackPartitions, ToolPaths tools, Progress p)
             throws IOException {
         if (!input.exists() || !input.isFile()) throw new IOException("文件不存在: " + input);
-        if (!outRoot.exists() && !outRoot.mkdirs()) throw new IOException("无法创建输出目录: " + outRoot);
+        if (!outRoot.exists() && !outRoot.mkdirs()) {
+            // 逐级尝试创建, 并给出明确原因
+            File parent = outRoot.getParentFile();
+            while (parent != null && !parent.exists()) {
+                if (!parent.mkdirs()) break;
+                parent = parent.getParentFile();
+            }
+            if (!outRoot.mkdirs()) {
+                throw new IOException("无法创建输出目录: " + outRoot
+                        + "\n可能原因: 存储权限不足(请授予「所有文件访问」) 或 该目录不可写(换个目录, 如 /sdcard/DNA/out)");
+            }
+        }
 
         p.log("══ 解包: " + input.getName() + " ══");
         ImgType.Type t = ImgType.detect(input);
