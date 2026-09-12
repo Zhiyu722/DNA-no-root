@@ -105,7 +105,7 @@ public class MainActivity extends Activity {
     private float dragStartPos = -1;
     private View permBanner;
     private boolean allFilesRequested = false;
-    private static final int REQ_PERM_LEGACY = 1001;
+    private static final int REQ_PERM_LEGACY = 1004;  // 注意: 必须与其他请求码不同
     private float pillStartSeg = 0f;
 
     private void buildUi() {
