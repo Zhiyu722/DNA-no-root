@@ -2,6 +2,7 @@ package com.zhiyu.dna.engine;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -77,28 +78,11 @@ public final class BootImage {
         File kernel = new File(realDir, "kernel");
         if (!kernel.exists()) throw new IOException("缺少 kernel 文件");
 
-        // 还原 ramdisk 目录 → cpio
+        // 还原 ramdisk 目录 → cpio(增量更新, 完整保留权限/属主/软链接)
         File ramdiskDir = new File(realDir, "ramdisk");
         File ramdiskCpio = new File(realDir, "ramdisk.cpio");
-        File ramdiskGz = new File(realDir, "ramdisk.cpio.gz");
-        File ramdiskLz4 = new File(realDir, "ramdisk.cpio.lz4");
-        boolean hasRamdiskBlob = ramdiskCpio.exists() || ramdiskGz.exists() || ramdiskLz4.exists();
-        if (ramdiskDir.isDirectory() && !hasRamdiskBlob) {
-            p.log("打包 ramdisk 目录 → cpio ...");
-            // 用内置 cpio(newc)打包目录
-            String prefix = tools.magiskboot.getParent();
-            File cpioBin = new File(prefix, "cpio");
-            if (cpioBin.exists()) {
-                List<String> cmds = Exec.cmd(cpioBin.getAbsolutePath(),
-                        "-o", "-H", "newc", "-O", ramdiskCpio.getAbsolutePath());
-                runInDir(cmds, ramdiskDir, tools.libDir, p);
-            } else {
-                // 没有 cpio 时用 magiskboot cpio
-                List<String> cmds = Exec.cmd(tools.magiskboot.getAbsolutePath(),
-                        "cpio", ramdiskCpio.getAbsolutePath(), "add");
-                runInDir(cmds, ramdiskDir, tools.libDir, p);
-            }
-            if (ramdiskCpio.exists()) p.log("ramdisk cpio 打包完成");
+        if (ramdiskDir.isDirectory() && ramdiskCpio.exists()) {
+            syncRamdiskDir(ramdiskDir, ramdiskCpio, tools, p);
         }
 
         // 用 magiskboot repack 生成最终 boot
@@ -123,6 +107,129 @@ public final class BootImage {
             newBoot.renameTo(outImg);
         }
         p.log("boot 打包完成 → " + outImg.getAbsolutePath());
+    }
+
+    /**
+     * 把 ramdisk/ 目录的改动同步回原 ramdisk.cpio。
+     * 以原 cpio 为基准做增量更新: 未改动的条目元数据(权限/属主/软链接)完全保留,
+     * 只对改动/新增/删除的条目执行 magiskboot cpio 命令 —— 这样 init 等关键文件的
+     * 权限不会因打包而丢失(否则会导致无法 init)。
+     */
+    private static void syncRamdiskDir(File ramdiskDir, File cpio, ToolPaths tools, Progress p)
+            throws IOException {
+        p.log("同步 ramdisk 改动到 cpio(保留权限/属主)...");
+        File origDir = new File(ramdiskDir.getParentFile(), ".ramdisk_orig");
+        Io.deleteRecursive(origDir);
+        if (!origDir.mkdirs()) throw new IOException("无法创建临时目录: " + origDir);
+
+        // 1) 把原 cpio 解到临时目录(magiskboot extract 会还原文件权限)
+        runInDir(Exec.cmd(tools.magiskboot.getAbsolutePath(),
+                "cpio", cpio.getAbsolutePath(), "extract"), origDir, tools.libDir, p);
+
+        // 2) 比对差异, 生成 magiskboot cpio 命令
+        List<String> cmds = new ArrayList<>();
+        diffEntries(origDir, ramdiskDir, "", cmds, ramdiskDir);
+        // 删除: 原 cpio 有但目录里已删掉的条目
+        List<String> origList = listEntries(origDir, "");
+        for (String e : origList) {
+            File inNew = new File(ramdiskDir, e);
+            if (!inNew.exists()) cmds.add("rm -r " + e);
+        }
+
+        if (cmds.isEmpty()) {
+            p.log("ramdisk 未改动, 使用原 cpio(权限完全保持)");
+        } else {
+            p.log("应用 " + cmds.size() + " 项 ramdisk 改动 ...");
+            List<String> cmd = Exec.cmd(tools.magiskboot.getAbsolutePath(),
+                    "cpio", cpio.getAbsolutePath());
+            cmd.addAll(cmds);
+            runInDir(cmd, origDir, tools.libDir, p);
+        }
+        Io.deleteRecursive(origDir);
+    }
+
+    /** 递归比对目录差异, 生成 magiskboot cpio 命令(add/mkdir/ln)。 */
+    private static void diffEntries(File origDir, File newDir, String prefix,
+                                    List<String> cmds, File ramdiskRoot) {
+        File[] items = newDir.listFiles();
+        if (items == null) return;
+        for (File f : items) {
+            String entry = prefix.isEmpty() ? f.getName() : prefix + "/" + f.getName();
+            File orig = new File(origDir, entry);
+            if (isSymlink(f)) {
+                String target = readLink(f);
+                String origTarget = isSymlink(orig) ? readLink(orig) : null;
+                if (!isSymlink(orig) || (target != null && !target.equals(origTarget))) {
+                    cmds.add("ln " + target + " " + entry);
+                }
+            } else if (f.isDirectory()) {
+                if (!orig.isDirectory()) {
+                    cmds.add("mkdir " + mode(f) + " " + entry);
+                }
+                diffEntries(orig, f, entry, cmds, ramdiskRoot);
+            } else {
+                // 文件: 新增或内容变化时用 add 更新(mode 与原文件一致)
+                if (!orig.isFile() || orig.length() != f.length() || !sameContent(orig, f)) {
+                    String mode = orig.isFile() ? mode(orig) : mode(f);
+                    cmds.add("add " + mode + " " + entry + " " + f.getAbsolutePath());
+                }
+            }
+        }
+    }
+
+    /** 列出目录下所有条目(相对路径)。 */
+    private static List<String> listEntries(File dir, String prefix) {
+        List<String> out = new ArrayList<>();
+        File[] items = dir.listFiles();
+        if (items == null) return out;
+        for (File f : items) {
+            String rel = prefix.isEmpty() ? f.getName() : prefix + "/" + f.getName();
+            out.add(rel);
+            if (f.isDirectory() && !isSymlink(f)) out.addAll(listEntries(f, rel));
+        }
+        return out;
+    }
+
+    private static boolean isSymlink(File f) {
+        try { return f != null && f.exists() && java.nio.file.Files.isSymbolicLink(f.toPath()); }
+        catch (Exception e) { return false; }
+    }
+
+    private static String readLink(File f) {
+        try { return java.nio.file.Files.readSymbolicLink(f.toPath()).toString(); }
+        catch (Exception e) { return null; }
+    }
+
+    /** 八进制权限字符串(如 0755)。 */
+    private static String mode(File f) {
+        try {
+            java.util.Set<java.nio.file.attribute.PosixFilePermission> perms =
+                    java.nio.file.Files.getPosixFilePermissions(f.toPath());
+            int m = 0;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.OWNER_READ)) m |= 0400;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.OWNER_WRITE)) m |= 0200;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE)) m |= 0100;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.GROUP_READ)) m |= 0040;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.GROUP_WRITE)) m |= 0020;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.GROUP_EXECUTE)) m |= 0010;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.OTHERS_READ)) m |= 0004;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.OTHERS_WRITE)) m |= 0002;
+            if (perms.contains(java.nio.file.attribute.PosixFilePermission.OTHERS_EXECUTE)) m |= 0001;
+            return String.format("0%03o", m);
+        } catch (Exception e) {
+            return f.isDirectory() ? "0755" : "0644";
+        }
+    }
+
+    private static boolean sameContent(File a, File b) {
+        try {
+            if (a.length() != b.length()) return false;
+            byte[] ba = java.nio.file.Files.readAllBytes(a.toPath());
+            byte[] bb = java.nio.file.Files.readAllBytes(b.toPath());
+            return java.util.Arrays.equals(ba, bb);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** 读取解包时记录的原镜像路径; 找不到返回 null。 */
