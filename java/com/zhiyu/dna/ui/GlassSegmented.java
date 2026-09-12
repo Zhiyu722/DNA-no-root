@@ -169,9 +169,25 @@ public class GlassSegmented extends LinearLayout {
         return selected;
     }
 
+    /** 每段最大宽度(宽屏时限制, 避免药丸又小又散) */
+    private float maxSegmentWidth() {
+        return dp(118);
+    }
+
+    /** 玻璃面板实际宽度: 宽屏时居中并限制总宽 */
+    public float getPanelWidth() {
+        float maxW = maxSegmentWidth() * Math.max(1, items.length);
+        return Math.min(getWidth(), maxW);
+    }
+
+    /** 玻璃面板左边界(宽屏时居中) */
+    public float getPanelLeft() {
+        return (getWidth() - getPanelWidth()) / 2f;
+    }
+
     /** 每段宽度 px(1:1 像素跟手用) */
     public float getSegmentWidth() {
-        return (getWidth() - dp(10)) / Math.max(1, items.length);
+        return getPanelWidth() / Math.max(1, items.length);
     }
 
     /** 段数 */
@@ -213,6 +229,16 @@ public class GlassSegmented extends LinearLayout {
                 selected = nearest;
                 updateTextColors();
             }
+        }
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        // 分辨率适配: 宽屏时给左右加 padding, 使文字段与居中的玻璃面板/药丸对齐
+        int sidePad = (int) Math.max(0, getPanelLeft());
+        if (getPaddingLeft() != sidePad || getPaddingRight() != sidePad) {
+            setPadding(sidePad, getPaddingTop(), sidePad, getPaddingBottom());
         }
     }
 
@@ -282,21 +308,24 @@ public class GlassSegmented extends LinearLayout {
         float w = getWidth();
         float h = getHeight();
         float radius = h / 2f;
+        // 分辨率适配: 宽屏(平板)时面板居中并限制总宽, 药丸间距不再被拉散
+        float pw = getPanelWidth();
+        float pl = getPanelLeft();
 
         // ===== 玻璃面板(保留玻璃质感) =====
-        RectF panel = new RectF(dp(2), dp(2), w - dp(2), h - dp(2));
+        RectF panel = new RectF(pl + dp(2), dp(2), pl + pw - dp(2), h - dp(2));
         GlassRenderer.drawGlass(canvas, scene, this, panel, radius, shadowPaint);
         // 渐变描边(蓝青液态光晕)
         Path border = new Path();
         border.addRoundRect(panel, radius, radius, Path.Direction.CW);
-        borderPaint.setShader(new LinearGradient(0, 0, w, h,
+        borderPaint.setShader(new LinearGradient(pl, 0, pl + pw, h,
                 new int[]{0x77FFFFFF, 0xAA99FFFF, 0x88FFB3FF, 0x77FFFFFF},
                 new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawPath(border, borderPaint);
 
         // ===== 每个选项: 玻璃药丸背景(未选中项也有玻璃质感) =====
-        float seg = w / items.length;
-        float pillW = dp(96);   // 药丸宽度: 包住两个字
+        float seg = pw / items.length;
+        float pillW = Math.min(dp(96), seg - dp(8));   // 药丸宽度自适应段宽
         float cy = h / 2f;
         Paint optGlass = new Paint(Paint.ANTI_ALIAS_FLAG);
         optGlass.setColor(0x4DFFFFFF);   // 半透明白玻璃
@@ -305,7 +334,7 @@ public class GlassSegmented extends LinearLayout {
         optStroke.setStrokeWidth(dp(1));
         optStroke.setColor(0x66FFFFFF);
         for (int i = 0; i < items.length; i++) {
-            float cx = (i + 0.5f) * seg;
+            float cx = pl + (i + 0.5f) * seg;
             RectF pill = new RectF(cx - pillW / 2f, dp(4), cx + pillW / 2f, h - dp(4));
             if (Math.abs(i - pillPos) > 0.5f) {
                 // 非选中项: 玻璃药丸
@@ -315,8 +344,8 @@ public class GlassSegmented extends LinearLayout {
         }
 
         // ===== 视频12式滑动胶囊: 文字大小, 在段中心间连续滑动 =====
-        float capsuleW = dp(96);
-        float centerX = (pillPos + 0.5f) * seg;   // 在段中心间连续滑动
+        float capsuleW = Math.min(dp(96), seg - dp(8));
+        float centerX = pl + (pillPos + 0.5f) * seg;   // 在段中心间连续滑动
         RectF rect = new RectF(centerX - capsuleW / 2f, dp(4),
                 centerX + capsuleW / 2f, h - dp(4));
 
