@@ -607,9 +607,10 @@ public class MainActivity extends Activity {
     private void checkStoragePermission() {
         // 首次进入自动申请文件权限
         if (Build.VERSION.SDK_INT >= 30) {
-            if (!Environment.isExternalStorageManager()) {
+            // 先实际探测 /sdcard 是否可读写(Android 11 的 legacy 访问也能通过, 避免误弹授权页)
+            if (!canWriteSdcard() && !Environment.isExternalStorageManager()) {
                 autoRequestAllFiles();
-                showPermissionBanner();   // 若用户跳过/拒绝, 仍可点提示条再授权
+                showPermissionBanner();
             }
         } else if (Build.VERSION.SDK_INT >= 23) {
             if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -619,6 +620,23 @@ public class MainActivity extends Activity {
                         Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM_LEGACY);
                 showPermissionBanner();
             }
+        }
+    }
+
+    /** 实际探测 /sdcard 是否可写(不依赖 isExternalStorageManager, 兼容 Android 11 legacy 访问) */
+    private boolean canWriteSdcard() {
+        try {
+            File dir = new File(Environment.getExternalStorageDirectory(), "DNA");
+            if (!dir.exists() && !dir.mkdirs()) return false;
+            File probe = new File(dir, ".probe_rw");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(probe);
+            fos.write(1);
+            fos.close();
+            boolean ok = probe.exists();
+            probe.delete();
+            return ok;
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -1195,8 +1213,13 @@ public class MainActivity extends Activity {
                     }
                     inFile = cache;
                 }
+                post(() -> unpackLog.append("正在解包, 请稍候..."));
                 DnaEngine.unpack(inFile, new File(out), autoPartsSw.isChecked(), tt,
                         uiProgress(unpackLog, "解包"));
+                post(() -> {
+                    unpackLog.append("【解包完成】输出目录: " + out);
+                    toast("解包完成 ✓");
+                });
             } catch (Exception e) {
                 post(() -> unpackLog.append("[失败] " + e.getMessage()));
                 try {
@@ -1252,7 +1275,10 @@ public class MainActivity extends Activity {
 
             @Override
             public void done(boolean ok, String message) {
-                post(() -> log.append(ok ? "✅ " + message : "❌ " + message));
+                post(() -> {
+                    log.append(ok ? "✅ " + message : "❌ " + message);
+                    toast(message);   // 同时弹提示, 明确告知完成
+                });
             }
         };
     }
