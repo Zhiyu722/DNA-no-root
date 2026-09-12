@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Environment;
 import android.provider.Settings;
 import android.view.Gravity;
@@ -103,6 +104,8 @@ public class MainActivity extends Activity {
     private LinearLayout topArea;
     private float dragStartPos = -1;
     private View permBanner;
+    private boolean allFilesRequested = false;
+    private static final int REQ_PERM_LEGACY = 1001;
     private float pillStartSeg = 0f;
 
     private void buildUi() {
@@ -592,18 +595,51 @@ public class MainActivity extends Activity {
 
     // ================= 存储权限 =================
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_PERM_LEGACY && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED && permBanner != null) {
+            permBanner.setVisibility(View.GONE);
+        }
+    }
+
     private void checkStoragePermission() {
-        // 不自动跳系统授权页(平板/用户会困惑), 改为应用内提示条
-        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
-            showPermissionBanner();
-        } else if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 30) {
+        // 首次进入自动申请文件权限
+        if (Build.VERSION.SDK_INT >= 30) {
+            if (!Environment.isExternalStorageManager()) {
+                autoRequestAllFiles();
+                showPermissionBanner();   // 若用户跳过/拒绝, 仍可点提示条再授权
+            }
+        } else if (Build.VERSION.SDK_INT >= 23) {
             if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{
                         Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
+                        Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM_LEGACY);
+                showPermissionBanner();
             }
         }
+    }
+
+    /** 自动跳转系统「所有文件访问」授权页(首次进入时调用一次) */
+    private void autoRequestAllFiles() {
+        if (allFilesRequested) return;
+        allFilesRequested = true;
+        new Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                Intent i = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(i, REQ_ALL_FILES);
+            } catch (Exception e) {
+                try {
+                    startActivityForResult(
+                            new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION), REQ_ALL_FILES);
+                } catch (Exception e2) {
+                    toast("请手动打开设置 → 应用 → DNA 解包助手 → 所有文件访问");
+                }
+            }
+        }, 600);   // 稍作延迟, 等界面显示完再跳转
     }
 
     /** 应用内玻璃提示条: 点击去系统授权 */
@@ -706,14 +742,26 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        // 系统授权页返回时 resultCode 常为 CANCELED 且 data 为空, 需先处理授权结果
+        if (requestCode == REQ_ALL_FILES) {
+            boolean granted = Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager();
+            if (granted && permBanner != null) {
+                permBanner.setVisibility(View.GONE);
+                toast("已获得所有文件访问权限 ✓");
+            }
+            return;
+        }
+        if (requestCode == REQ_PERM_LEGACY) {
+            if (Build.VERSION.SDK_INT >= 23
+                    && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED
+                    && permBanner != null) {
+                permBanner.setVisibility(View.GONE);
+            }
+            return;
+        }
         if (resultCode != RESULT_OK || data == null) return;
         try {
-            if (requestCode == REQ_ALL_FILES) {
-                if (Build.VERSION.SDK_INT >= 30 && Environment.isExternalStorageManager() && permBanner != null) {
-                    permBanner.setVisibility(View.GONE);
-                }
-                return;
-            }
             if (requestCode == REQ_INPUT_FILE && data.getData() != null) {
                 String path = resolvePath(data.getData());
                 inputPathEt.setText(path);
