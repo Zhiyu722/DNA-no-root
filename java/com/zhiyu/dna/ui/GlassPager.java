@@ -24,7 +24,7 @@ public class GlassPager extends ViewGroup {
     }
 
     private static final double SPRING_K = 420.0;
-    private static final double SPRING_DAMPING = 0.88;
+    private static final double SPRING_DAMPING = 0.99;   // 近临界阻尼: 稳, 不过冲
     private static final double OMEGA_N = Math.sqrt(SPRING_K);
     private static final double PARALLAX = 0.10;        // 视差比例
     private static final float NEIGHBOR_SCALE = 0.94f; // 相邻页缩放

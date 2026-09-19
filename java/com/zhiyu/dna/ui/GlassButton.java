@@ -56,8 +56,8 @@ public class GlassButton extends FrameLayout {
 
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(dp(1.1f));
-        shadowPaint.setColor(0x33000000);
-        shadowPaint.setShadowLayer(dp(8), 0, dp(3), 0x40000000);
+        shadowPaint.setColor(0x26000000);
+        shadowPaint.setShadowLayer(dp(4.5f), 0, dp(1.5f), 0x33000000);
 
         applyStyle(style);
 

@@ -33,8 +33,8 @@ public class GlassCard extends FrameLayout {
         super(context);
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         setWillNotDraw(false);
-        shadowPaint.setColor(0x22000000);
-        shadowPaint.setShadowLayer(dp(10), 0, dp(4), 0x30000000);
+        shadowPaint.setColor(0x1A000000);
+        shadowPaint.setShadowLayer(dp(5), 0, dp(2f), 0x24000000);   // 阴影减小
         solidPaint.setColor(0xFFFBFCFD);
         solidStroke.setStyle(Paint.Style.STROKE);
         solidStroke.setStrokeWidth(dp(1));
@@ -75,7 +75,7 @@ public class GlassCard extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
-        rect.set(dp(5), dp(3), w - dp(5), h - dp(7));
+        rect.set(dp(3), dp(2), w - dp(3), h - dp(5));
         clipPath.reset();
         clipPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
     }

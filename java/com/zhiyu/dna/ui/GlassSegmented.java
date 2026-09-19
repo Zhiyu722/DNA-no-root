@@ -32,7 +32,7 @@ public class GlassSegmented extends LinearLayout {
     public interface OnSelectedListener { void onSelected(int index); }
     public interface OnDragListener { void onDrag(float pos); }
 
-    private static final float MAX_SEG_DP = 118f;
+    private static final float MAX_SEG_DP = 88f;   // 更紧凑的外框(手机上不再占满整宽)
     private static final float DRAG_SLOP_DP = 4f;
 
     private final String[] items;
@@ -67,16 +67,16 @@ public class GlassSegmented extends LinearLayout {
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         setClipToPadding(false);
 
-        shadowPaint.setColor(0x26000000);
-        shadowPaint.setShadowLayer(dp(10), 0, dp(3), 0x33000000);
+        shadowPaint.setColor(0x1F000000);
+        shadowPaint.setShadowLayer(dp(5), 0, dp(1.5f), 0x28000000);   // 阴影减小
 
         capFill.setColor(0xF2FFFFFF);
         capStroke.setStyle(Paint.Style.STROKE);
         capStroke.setStrokeWidth(dp(0.9f));
         capStroke.setColor(0x2E5A6675);   // 淡灰描边, 白胶囊在白面板上也有边界
         pressPaint.setColor(0x14000000);
-        capShadow.setColor(0x38000000);
-        capShadow.setShadowLayer(dp(7), 0, dp(2f), 0x52000000);
+        capShadow.setColor(0x2E000000);
+        capShadow.setShadowLayer(dp(3.5f), 0, dp(1f), 0x40000000);
 
         for (int i = 0; i < this.items.length; i++) {
             final int idx = i;
@@ -279,8 +279,8 @@ public class GlassSegmented extends LinearLayout {
         lastStep = now;
         if (dt <= 0) return;
         float x = pillPos - targetPos;
-        float omega = 27f;
-        float zeta = 0.86f;
+        float omega = 24f;
+        float zeta = 0.99f;   // 近临界阻尼: 到位即停, 不回弹过头
         float accel = -omega * omega * x - 2f * zeta * omega * pillVel;
         pillVel += accel * dt;
         pillPos += pillVel * dt;
@@ -301,7 +301,7 @@ public class GlassSegmented extends LinearLayout {
         float h = getHeight();
         float pw = getPanelWidth();
         float pl = getPanelLeft();
-        RectF panel = new RectF(pl + dp(1), dp(2), pl + pw - dp(1), h - dp(2));
+        RectF panel = new RectF(pl + dp(1), dp(1.5f), pl + pw - dp(1), h - dp(1.5f));
         float radius = panel.height() / 2f;
 
         // 面板: 玻璃
@@ -314,9 +314,9 @@ public class GlassSegmented extends LinearLayout {
 
         // 胶囊(白色玻璃): 在两段中心之间连续滑动
         float seg = pw / Math.max(1, items.length);
-        float capsuleW = Math.max(dp(64), seg - dp(12));
+        float capsuleW = Math.max(dp(56), seg - dp(9));
         float centerX = pl + (pillPos + 0.5f) * seg;
-        float inset = dp(4.5f);
+        float inset = dp(3.5f);
         RectF cap = new RectF(centerX - capsuleW / 2f, panel.top + inset,
                 centerX + capsuleW / 2f, panel.bottom - inset);
         float capR = cap.height() / 2f;

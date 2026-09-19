@@ -159,7 +159,7 @@ public class MainActivity extends Activity {
         });
         topTabs.attachScene(scene);
         topArea.addView(topTabs, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(52)));
+                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(46)));
         this.topArea = topArea;
 
         FrameLayout.LayoutParams topLp = new FrameLayout.LayoutParams(
