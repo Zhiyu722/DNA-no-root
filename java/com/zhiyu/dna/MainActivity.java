@@ -105,6 +105,7 @@ public class MainActivity extends Activity {
     private float dragStartPos = -1;
     private View permBanner;
     private boolean allFilesRequested = false;
+    private boolean tabDragging = false;   // 顶栏拖动中(胶囊需 1:1)
     private static final int REQ_PERM_LEGACY = 1004;  // 注意: 必须与其他请求码不同
     private float pillStartSeg = 0f;
 
@@ -126,26 +127,39 @@ public class MainActivity extends Activity {
         brandRow.setGravity(Gravity.CENTER_VERTICAL | Gravity.CENTER_HORIZONTAL);
         TextView brand = new TextView(this);
         brand.setText("DNA");
-        brand.setTextSize(21);
+        brand.setTextSize(23);
         brand.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         brand.setTextColor(0xFF169AFF);
-        brand.setShadowLayer(dp(8), 0, dp(2), 0x55169AFF);
+        brand.setShadowLayer(dp(10), 0, dp(2), 0x44169AFF);
+        brand.setLetterSpacing(0.02f);
         brandRow.addView(brand);
         TextView brandSub = new TextView(this);
-        brandSub.setText("  固件解包助手");
-        brandSub.setTextSize(13);
-        brandSub.setTextColor(0xFF5A6B7A);
-        brandRow.addView(brandSub);
+        brandSub.setText("固件解包助手");
+        brandSub.setTextSize(11.5f);
+        brandSub.setTextColor(0xFF7A8794);
+        brandSub.setLetterSpacing(0.12f);
+        android.widget.LinearLayout.LayoutParams subLp =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+        subLp.leftMargin = (int) dp(8);
+        brandRow.addView(brandSub, subLp);
         topArea.addView(brandRow, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, (int) dp(30)));
 
         // 玻璃顶栏: 宽度自适应(左右留 18dp)
         topTabs = new GlassSegmented(this, new String[]{"解包", "打包", "关于"});
-        topTabs.setOnSelectedListener(index -> pager.setCurrentPage(index, true));
-        topTabs.setOnDragListener(pos -> pager.setPositionFraction(pos, false));
+        topTabs.setOnSelectedListener(index -> {
+            tabDragging = false;
+            pager.setCurrentPage(index, true);
+        });
+        topTabs.setOnDragListener(pos -> {
+            tabDragging = true;
+            pager.setPositionFraction(pos, false);
+        });
         topTabs.attachScene(scene);
         topArea.addView(topTabs, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(48)));
+                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(52)));
         this.topArea = topArea;
 
         FrameLayout.LayoutParams topLp = new FrameLayout.LayoutParams(
@@ -185,16 +199,10 @@ public class MainActivity extends Activity {
         });
 
         pager.setOnPageChangedListener((index, pos) -> {
-            boolean dragging = pager.isDragging();
-            topTabs.setPosition(pos, dragging);   // 胶囊 1:1 跟手, 松手弹簧回位
-            dots.setPosition(pos);                // 指示点连续
-            if (dragging) {
-                // 拖动: 胶囊按内容位置比例实时跟踪(顶栏整体固定, 只有胶囊滑动, 干净不晃)
-                topTabs.setPosition(pos, true);
-            } else {
-                // 松手: 胶囊弹簧到位
-                topTabs.setPosition(pos, false);
-            }
+            // 唯一位置来源: 分页器。拖动中(页面拖动或顶栏拖动)胶囊 1:1, 松手走弹簧
+            boolean instant = tabDragging || pager.isDragging();
+            topTabs.setPosition(pos, instant);
+            dots.setPosition(pos);
         });
 
         // 底部指示器

@@ -1,62 +1,47 @@
 package com.zhiyu.dna.ui;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
-import android.graphics.Shader;
-import android.view.View;
 import android.widget.FrameLayout;
 
 /**
- * 液态玻璃卡片 —— 移植 Liquidglass.js 的渲染配方:
- *  1. 折射: 把捕获的背景位图按卡片位置画进圆角内, 轻微放大(玻璃厚度感)
- *  2. 顶部高光渐变 + 上缘镜面高光弧(等效 specular highlight)
- *  3. 底部柔和阴影 + 1px 内描边(等效 outline)
- *  4. 连续圆角(squircle 近似)
+ * 玻璃卡片(重写) —— 使用统一的 {@link GlassRenderer} 绘制:
+ * 折射 + 磨砂 + 增艳 + 罩白 + 顶部镜面 + 斜向光泽 + 边缘内阴影 + 上亮下暗描边。
+ *
+ * 支持两种外观:
+ *  - 默认: 玻璃(半透明白), 能看到背景的色彩流动
+ *  - {@link #setSolid(boolean)} 纯白不透明: 适合文字密集的内容区
  */
 public class GlassCard extends FrameLayout {
 
-    private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint highlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint specularPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
-    private final RectF bgRect = new RectF();
-    private final Path path = new Path();
-    private float radius = dp(28);
-    private float refraction = 1.045f;   // 背景放大比例(折射厚度)
+    private final Path clipPath = new Path();
+    private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint solidPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint solidStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
 
+    private float radius = dp(26);
+    private float refraction = 1.0f;
+    private int tintAlpha = 0x8A;      // 罩白透明度
+    private boolean solid = false;      // 纯白不透明模式
     private GlassScene scene;
 
     public GlassCard(Context context) {
         super(context);
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         setWillNotDraw(false);
-        bgPaint.setFilterBitmap(true);
-        bgPaint.setDither(true);
-        strokePaint.setStyle(Paint.Style.STROKE);
-        strokePaint.setStrokeWidth(dp(1.1f));
-        strokePaint.setColor(0xD9FFFFFF);
-        cardPaint.setStyle(Paint.Style.FILL);
-        cardPaint.setColor(0xFFFCFCFC); // 白卡片
-        shadowPaint.setStyle(Paint.Style.FILL);
-        shadowPaint.setColor(0x1A000000);
-        highlightPaint.setStyle(Paint.Style.FILL);
-        specularPaint.setStyle(Paint.Style.STROKE);
-        specularPaint.setStrokeWidth(dp(3));
-        specularPaint.setStrokeCap(Paint.Cap.ROUND);
+        shadowPaint.setColor(0x22000000);
+        shadowPaint.setShadowLayer(dp(10), 0, dp(4), 0x30000000);
+        solidPaint.setColor(0xFFFBFCFD);
+        solidStroke.setStyle(Paint.Style.STROKE);
+        solidStroke.setStrokeWidth(dp(1));
+        solidStroke.setColor(0x1AE0E6EC);
     }
 
-    /** 绑定场景容器, 用于折射采样 */
-    public void attachScene(GlassScene s) {
-        this.scene = s;
-    }
+    public void attachScene(GlassScene s) { this.scene = s; }
 
     public GlassCard setRadius(float radiusDp) {
         this.radius = dp(radiusDp);
@@ -64,67 +49,62 @@ public class GlassCard extends FrameLayout {
         return this;
     }
 
+    /** @param scale 1.0 = 默认折射; >1 更强 */
     public GlassCard setRefraction(float scale) {
         this.refraction = scale;
         invalidate();
         return this;
     }
 
-    private float dp(float v) {
-        return v * getResources().getDisplayMetrics().density;
+    /** 纯白不透明卡片(文字密集区更清晰) */
+    public GlassCard setSolid(boolean s) {
+        this.solid = s;
+        invalidate();
+        return this;
     }
+
+    /** 罩白透明度 0-255 */
+    public GlassCard setTintAlpha(int a) {
+        this.tintAlpha = Math.max(0, Math.min(255, a));
+        invalidate();
+        return this;
+    }
+
+    private float dp(float v) { return v * getResources().getDisplayMetrics().density; }
 
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
-        // 顶部高光
-        highlightPaint.setShader(new LinearGradient(0, 0, 0, h * 0.5f,
-                new int[]{0x78FFFFFF, 0x28FFFFFF, 0x00FFFFFF},
-                new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
-        // 上缘镜面高光: 白→透明
-        specularPaint.setShader(new LinearGradient(0, 0, 0, h * 0.28f,
-                0xE6FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        rect.set(dp(5), dp(3), w - dp(5), h - dp(7));
+        clipPath.reset();
+        clipPath.addRoundRect(rect, radius, radius, Path.Direction.CW);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
-        float w = getWidth(), h = getHeight();
-        rect.set(dp(6), dp(8), w - dp(6), h - dp(2));
-        path.reset();
-        path.addRoundRect(rect, radius, radius, Path.Direction.CW);
+        if (rect.isEmpty()) return;
 
-        // 视频1风格: 纯白不透明卡片 + 柔和阴影 + 淡灰描边
-        // 1) 阴影(向下偏移)
-        canvas.save();
-        canvas.translate(0, dp(5));
-        Path shadow = new Path();
-        shadow.addRoundRect(rect, radius, radius, Path.Direction.CW);
-        shadowPaint.setColor(0x14000000);
-        canvas.drawPath(shadow, shadowPaint);
-        canvas.restore();
-
-        // 2) 纯白填充 #FCFCFC
-        cardPaint.setColor(0xFFFCFCFC);
-        canvas.drawPath(path, cardPaint);
-
-        // 3) 顶部镜面高光(JS 玻璃原理: 上缘亮线 + 淡渐变)
-        canvas.save();
-        canvas.clipPath(path);
-        highlightPaint.setShader(new LinearGradient(0, rect.top, 0, rect.top + h * 0.4f,
-                new int[]{0x2EFFFFFF, 0x0AFFFFFF, 0x00FFFFFF},
-                new float[]{0f, 0.3f, 1f}, Shader.TileMode.CLAMP));
-        canvas.drawRect(rect, highlightPaint);
-        Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
-        edge.setStrokeWidth(dp(1.2f));
-        edge.setColor(0x66FFFFFF);
-        RectF topEdge = new RectF(rect.left + radius * 0.4f, rect.top + dp(2.5f),
-                rect.right - radius * 0.4f, rect.top + dp(4));
-        canvas.drawRoundRect(topEdge, dp(2), dp(2), edge);
-        canvas.restore();
-
-        // 4) 淡灰描边(视频1卡片边线)
-        strokePaint.setColor(0x1AE0E6EC);
-        strokePaint.setStrokeWidth(dp(1));
-        canvas.drawPath(path, strokePaint);
+        if (solid) {
+            // 纯白卡片: 阴影 + 白底 + 顶部微光 + 淡边
+            canvas.save();
+            canvas.translate(0, dp(3));
+            Path sp = new Path();
+            sp.addRoundRect(rect, radius, radius, Path.Direction.CW);
+            Paint sh = new Paint(Paint.ANTI_ALIAS_FLAG);
+            sh.setColor(0x14000000);
+            canvas.drawPath(sp, sh);
+            canvas.restore();
+            canvas.drawPath(clipPath, solidPaint);
+            Paint gloss = new Paint(Paint.ANTI_ALIAS_FLAG);
+            gloss.setShader(new android.graphics.LinearGradient(0, rect.top, 0, rect.top + rect.height() * 0.35f,
+                    0x18FFFFFF, 0x00FFFFFF, android.graphics.Shader.TileMode.CLAMP));
+            canvas.save();
+            canvas.clipPath(clipPath);
+            canvas.drawRect(rect, gloss);
+            canvas.restore();
+            canvas.drawPath(clipPath, solidStroke);
+        } else {
+            GlassRenderer.draw(canvas, scene, this, rect, radius, tintAlpha, refraction, shadowPaint);
+        }
     }
 }
