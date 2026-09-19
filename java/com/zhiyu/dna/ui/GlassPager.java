@@ -23,7 +23,7 @@ public class GlassPager extends ViewGroup {
         void onPageChanged(int index, float position);
     }
 
-    private static final double SPRING_K = 190.0;   // 刚度降低: 切换更从容(约 0.35s)
+    private static final double SPRING_K = 105.0;   // 刚度再降: 切换更慢更从容(约 0.45s)
     private static final double SPRING_DAMPING = 0.99;   // 近临界阻尼: 稳, 不过冲
     private static final double OMEGA_N = Math.sqrt(SPRING_K);
     private static final double PARALLAX = 0.10;        // 视差比例
@@ -288,7 +288,11 @@ public class GlassPager extends ViewGroup {
                 target = Math.max(0, Math.min(target, pages.size() - 1));
                 android.util.Log.d("DNAup", "  → target=" + target);
                 targetX = target * width;
-                posVel = -v * 0.55;   // 内容速度反向(削弱甩动, 避免"嗖"地一下过去)
+                // 内容速度反向 + 大幅削弱并限幅: 甩动不再让页面"嗖"地飞过去
+                double flingVel = -v * 0.28;
+                if (flingVel > 520) flingVel = 520;
+                if (flingVel < -520) flingVel = -520;
+                posVel = flingVel;
                 startSpring();
                 return true;
             }

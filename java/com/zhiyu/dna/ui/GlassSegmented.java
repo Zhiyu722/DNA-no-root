@@ -279,7 +279,7 @@ public class GlassSegmented extends LinearLayout {
         lastStep = now;
         if (dt <= 0) return;
         float x = pillPos - targetPos;
-        float omega = 17f;    // 放慢: 与页面切换同步更协调
+        float omega = 13f;    // 再放慢: 与页面切换同步
         float zeta = 0.99f;   // 近临界阻尼: 到位即停, 不回弹过头
         float accel = -omega * omega * x - 2f * zeta * omega * pillVel;
         pillVel += accel * dt;
