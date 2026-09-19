@@ -264,11 +264,23 @@ public class GlassSegmented extends LinearLayout {
             View v = getChildAt(i);
             if (v instanceof TextView) {
                 TextView tv = (TextView) v;
-                tv.setTextColor(i == selected ? 0xFF0D1116 : 0xFF6E7A88);
-                tv.setTextSize(i == selected ? 15.0f : 14.5f);
+                // iOS 风格: 颜色按"与胶囊的距离"连续过渡(胶囊滑过时标签平滑变深)
+                float d = Math.abs(i - pillPos);
+                float t = Math.max(0f, Math.min(1f, 1f - d));
+                tv.setTextColor(blend(0xFF6E7A88, 0xFF0D1116, t));
+                tv.setTextSize(14.5f + 0.5f * t);
                 tv.setShadowLayer(0, 0, 0, 0);
             }
         }
+    }
+
+    /** 颜色线性插值(用于标签过渡) */
+    private static int blend(int from, int to, float t) {
+        int a = (int) ((from >>> 24) * (1 - t) + (to >>> 24) * t);
+        int r = (int) (((from >> 16) & 0xFF) * (1 - t) + ((to >> 16) & 0xFF) * t);
+        int g = (int) (((from >> 8) & 0xFF) * (1 - t) + ((to >> 8) & 0xFF) * t);
+        int b = (int) ((from & 0xFF) * (1 - t) + (to & 0xFF) * t);
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     // ==================== 弹簧(欠阻尼) ====================
@@ -279,11 +291,12 @@ public class GlassSegmented extends LinearLayout {
         lastStep = now;
         if (dt <= 0) return;
         float x = pillPos - targetPos;
-        float omega = 13f;    // 再放慢: 与页面切换同步
+        float omega = 20f;    // iOS 手感: 干脆不拖沓
         float zeta = 0.99f;   // 近临界阻尼: 到位即停, 不回弹过头
         float accel = -omega * omega * x - 2f * zeta * omega * pillVel;
         pillVel += accel * dt;
         pillPos += pillVel * dt;
+        updateTextColors();
         invalidate();
         if (Math.abs(pillPos - targetPos) < 0.0012f && Math.abs(pillVel) < 0.03f) {
             pillPos = targetPos;

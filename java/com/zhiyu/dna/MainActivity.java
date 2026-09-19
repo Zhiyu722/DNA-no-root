@@ -199,9 +199,8 @@ public class MainActivity extends Activity {
         });
 
         pager.setOnPageChangedListener((index, pos) -> {
-            // 唯一位置来源: 分页器。拖动中(页面拖动或顶栏拖动)胶囊 1:1, 松手走弹簧
-            boolean instant = tabDragging || pager.isDragging();
-            topTabs.setPosition(pos, instant);
+            // 分页器是唯一动画来源: 胶囊/指示点 1:1 跟随, 不做二次弹簧(否则点击会"慢半拍")
+            topTabs.setPosition(pos, true);
             dots.setPosition(pos);
         });
 

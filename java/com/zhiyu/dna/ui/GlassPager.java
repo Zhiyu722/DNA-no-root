@@ -23,9 +23,12 @@ public class GlassPager extends ViewGroup {
         void onPageChanged(int index, float position);
     }
 
-    private static final double SPRING_K = 105.0;   // 刚度再降: 切换更慢更从容(约 0.45s)
-    private static final double SPRING_DAMPING = 0.99;   // 近临界阻尼: 稳, 不过冲
-    private static final double OMEGA_N = Math.sqrt(SPRING_K);
+    // iOS 手感: 点击干脆(≈0.25s), 滑动松手从容(≈0.38s), 都是临界阻尼(不回弹)
+    private static final double K_SWIPE = 140.0;
+    private static final double K_CLICK = 400.0;
+    private static final double SPRING_DAMPING = 0.99;
+    /** 当前生效的刚度(按交互类型切换) */
+    private double activeK = K_CLICK;
     private static final double PARALLAX = 0.10;        // 视差比例
     private static final float NEIGHBOR_SCALE = 0.94f; // 相邻页缩放
 
@@ -86,6 +89,7 @@ public class GlassPager extends ViewGroup {
     /** 外部控制(顶栏拖动联动): 直接设置页面位置 */
     public void setPositionFraction(float pos, boolean animated) {
         double target = pos * width;
+        if (animated) activeK = K_CLICK;
         if (animated) {
             targetX = target;
             startSpring();
@@ -100,6 +104,7 @@ public class GlassPager extends ViewGroup {
 
     public void setCurrentPage(int index, boolean animate) {
         if (index < 0 || index >= pages.size()) return;
+        activeK = K_CLICK;   // 点击切页: 快
         if (!animate) {
             posX = index * width;
             targetX = posX;
@@ -126,7 +131,8 @@ public class GlassPager extends ViewGroup {
         long nowNanos = System.nanoTime();
         double dt = Math.min(0.033, (nowNanos - lastFrameNanos) / 1e9);
         lastFrameNanos = nowNanos;
-        double[] r = springStepUnderdamped(posX, posVel, targetX, dt, OMEGA_N, SPRING_DAMPING);
+        double[] r = springStepUnderdamped(posX, posVel, targetX, dt,
+                Math.sqrt(activeK), SPRING_DAMPING);
         posX = r[0];
         posVel = r[1];
         if (Math.abs(posX - targetX) < 0.4 && Math.abs(posVel) < 3.0) {
@@ -289,10 +295,11 @@ public class GlassPager extends ViewGroup {
                 android.util.Log.d("DNAup", "  → target=" + target);
                 targetX = target * width;
                 // 内容速度反向 + 大幅削弱并限幅: 甩动不再让页面"嗖"地飞过去
-                double flingVel = -v * 0.28;
-                if (flingVel > 520) flingVel = 520;
-                if (flingVel < -520) flingVel = -520;
+                double flingVel = -v * 0.22;      // iOS 式: 甩动只给一点初速度
+                if (flingVel > 420) flingVel = 420;
+                if (flingVel < -420) flingVel = -420;
                 posVel = flingVel;
+                activeK = K_SWIPE;   // 滑动松手: 慢而从容
                 startSpring();
                 return true;
             }
