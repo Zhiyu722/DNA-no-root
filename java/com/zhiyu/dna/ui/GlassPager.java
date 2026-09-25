@@ -2,6 +2,7 @@ package com.zhiyu.dna.ui;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -25,7 +26,7 @@ public class GlassPager extends ViewGroup {
 
     // iOS 手感: 点击干脆(≈0.25s), 滑动松手从容(≈0.38s), 都是临界阻尼(不回弹)
     private static final double K_SWIPE = 140.0;
-    private static final double K_CLICK = 400.0;
+    private static final double K_CLICK = 620.0;   // 点击切页: 更快响应
     private static final double SPRING_DAMPING = 0.99;
     /** 当前生效的刚度(按交互类型切换) */
     private double activeK = K_CLICK;
@@ -185,6 +186,24 @@ public class GlassPager extends ViewGroup {
         currentPage = (int) Math.round(posX / width);
         currentPage = Math.max(0, Math.min(currentPage, pages.size() - 1));
         if (listener != null) listener.onPageChanged(currentPage, (float) (posX / width));
+    }
+
+    /**
+     * 逐页裁剪在自己的一格内: 防止相邻页内容在过渡时互相"抄"到对方区域。
+     * (页面的视差/缩放仍然生效, 只是不允许越界绘制)
+     */
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        if (width <= 0) { super.dispatchDraw(canvas); return; }
+        long t = getDrawingTime();
+        for (int i = 0; i < pages.size(); i++) {
+            View v = pages.get(i);
+            if (v == null || v.getVisibility() != View.VISIBLE) continue;
+            canvas.save();
+            canvas.clipRect(i * width, 0, (i + 1) * width, getHeight());
+            drawChild(canvas, v, t);
+            canvas.restore();
+        }
     }
 
     @Override

@@ -141,6 +141,10 @@ public class GlassSegmented extends LinearLayout {
         boolean changed = index != selected;
         selected = index;
         targetPos = index;
+        // 点击立即起跳(不等分页器回流), 观感零延迟
+        stopSpring();
+        lastStep = System.nanoTime();
+        springAnim.start();
         updateTextColors();
         if (changed && listener != null) listener.onSelected(index);
         if (!changed) {
@@ -155,9 +159,53 @@ public class GlassSegmented extends LinearLayout {
 
     private float maxSeg() { return dp(MAX_SEG_DP); }
 
+    /** 标签实际需要的段宽(px): 最长标签 + 左右内边距, 并限制在 [56dp, 118dp] */
+    private float contentSegWidth() {
+        float maxText = 0f;
+        for (int i = 0; i < getChildCount(); i++) {
+            View v = getChildAt(i);
+            if (v instanceof TextView) {
+                TextView tv = (TextView) v;
+                maxText = Math.max(maxText, tv.getPaint().measureText(tv.getText().toString()));
+            }
+        }
+        float need = maxText + dp(30);                     // 左右各 15dp
+        float lo = dp(88);                                 // 下限: 顶栏保持舒展
+        float hi = dp(124);
+        if (need < lo) need = lo;
+        if (need > hi) need = hi;
+        return need;
+    }
+
+    /** 面板宽度: 按内容自适应(长标签如"sparse 镜像"不再被裁), 超屏则占满 */
     public float getPanelWidth() {
-        float maxW = maxSeg() * Math.max(1, items.length);
-        return Math.min(getWidth(), maxW);
+        float seg = contentSegWidth();
+        float pw = seg * Math.max(1, items.length);
+        float avail = getWidth();
+        if (avail > 0 && pw > avail) pw = avail;
+        return pw;
+    }
+
+    /** 面板变窄时按比例缩小标签字号, 保证不裁字 */
+    private void fitTextSize() {
+        float seg = getPanelWidth() / Math.max(1, items.length);
+        float avail = seg - dp(10);
+        if (avail <= 0) return;
+        for (int i = 0; i < getChildCount(); i++) {
+            View v = getChildAt(i);
+            if (!(v instanceof TextView)) continue;
+            TextView tv = (TextView) v;
+            float base = 14.5f;
+            tv.setTextSize(base);
+            tv.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            float w = tv.getPaint().measureText(tv.getText().toString());
+            if (w > avail) {
+                float scaled = base * (avail / w) * 0.96f;
+                if (scaled < 9.5f) scaled = 9.5f;
+                tv.setTextSize(scaled);
+            }
+        }
     }
 
     public float getPanelLeft() {
@@ -171,6 +219,7 @@ public class GlassSegmented extends LinearLayout {
         if (getPaddingLeft() != side || getPaddingRight() != side) {
             setPadding(side, getPaddingTop(), side, getPaddingBottom());
         }
+        fitTextSize();
     }
 
     public float getSegmentWidth() {
@@ -291,7 +340,7 @@ public class GlassSegmented extends LinearLayout {
         lastStep = now;
         if (dt <= 0) return;
         float x = pillPos - targetPos;
-        float omega = 20f;    // iOS 手感: 干脆不拖沓
+        float omega = 26f;    // 点击/回位更快, 拖沓感消除
         float zeta = 0.99f;   // 近临界阻尼: 到位即停, 不回弹过头
         float accel = -omega * omega * x - 2f * zeta * omega * pillVel;
         pillVel += accel * dt;

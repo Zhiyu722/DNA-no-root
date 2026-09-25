@@ -104,7 +104,9 @@ public class GlassCard extends FrameLayout {
             canvas.restore();
             canvas.drawPath(clipPath, solidStroke);
         } else {
-            GlassRenderer.draw(canvas, scene, this, rect, radius, tintAlpha, refraction, shadowPaint);
+            // 卡片面积大且内容静态: live=false, 只在几何变化时重算(防掉帧)
+            GlassRenderer.draw(canvas, scene, this, rect, radius, tintAlpha,
+                    refraction, 1.0f, 0f, false, shadowPaint);
         }
     }
 }

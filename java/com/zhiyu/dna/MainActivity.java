@@ -159,7 +159,7 @@ public class MainActivity extends Activity {
         });
         topTabs.attachScene(scene);
         topArea.addView(topTabs, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(46)));
+                LinearLayout.LayoutParams.MATCH_PARENT, (int) dp(50)));
         this.topArea = topArea;
 
         FrameLayout.LayoutParams topLp = new FrameLayout.LayoutParams(
@@ -385,7 +385,7 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         c1.addView(title);
         TextView ver = new TextView(this);
-        ver.setText("版本 2.0.0  ·  包名 com.zhiyu.dna");
+        ver.setText("版本 3.0.0  ·  包名 com.zhiyu.dna");
         ver.setTextColor(0xFF6B7280);
         ver.setTextSize(12);
         ver.setGravity(Gravity.CENTER);

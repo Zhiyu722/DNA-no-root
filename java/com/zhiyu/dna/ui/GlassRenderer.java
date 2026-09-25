@@ -54,6 +54,41 @@ public final class GlassRenderer {
     public static void draw(Canvas canvas, GlassScene scene, View self,
                             RectF rect, float radius, int tintAlpha,
                             float refraction, float specular, Paint shadowPaint) {
+        draw(canvas, scene, self, rect, radius, tintAlpha, refraction, specular, 0f, shadowPaint);
+    }
+
+    /**
+     * 完整参数版(含实体感)。
+     * 若原生 C 玻璃库可用则用原生渲染, 否则回退到下面的 Java Canvas 实现。
+     */
+    public static void draw(Canvas canvas, GlassScene scene, View self,
+                            RectF rect, float radius, int tintAlpha,
+                            float refraction, float specular, float bodyAlpha,
+                            Paint shadowPaint) {
+        draw(canvas, scene, self, rect, radius, tintAlpha, refraction, specular,
+                bodyAlpha, true, shadowPaint);
+    }
+
+    /** @param live false = 静态面板(不跟随背景动画重算, 省 CPU 防掉帧) */
+    public static void draw(Canvas canvas, GlassScene scene, View self,
+                            RectF rect, float radius, int tintAlpha,
+                            float refraction, float specular, float bodyAlpha,
+                            boolean live, Paint shadowPaint) {
+        if (self != null && NativeGlass.available()) {
+            // 本应用只有浅色 UI(无深色主题资源): 原生玻璃恒定浅色配色。
+            // 否则系统切到深色模式时, 深色阴影/罩色会在浅色界面上变成"黑框"。
+            if (NativeGlass.of(self).drawPanel(canvas, scene, self, rect, radius,
+                    tintAlpha, specular, bodyAlpha, false, live)) {
+                return;
+            }
+        }
+        drawJava(canvas, scene, self, rect, radius, tintAlpha, refraction, specular, shadowPaint);
+    }
+
+    /** Java Canvas 实现(原生不可用时的回退, 也是参考实现) */
+    private static void drawJava(Canvas canvas, GlassScene scene, View self,
+                                 RectF rect, float radius, int tintAlpha,
+                                 float refraction, float specular, Paint shadowPaint) {
         final Path shape = new Path();
         shape.addRoundRect(rect, radius, radius, Path.Direction.CW);
 

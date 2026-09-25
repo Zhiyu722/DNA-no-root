@@ -13,6 +13,7 @@ public class GlassScene extends FrameLayout {
 
     private final AnimatedBackground bg;
     private volatile Bitmap bgCache;
+    private volatile long cacheVersion = 0;   // 每次捕获 +1, 供原生玻璃判断缓存是否失效
     private long lastCapture;
     private final Object lock = new Object();
     private final Runnable captureTask = this::capture;
@@ -49,6 +50,7 @@ public class GlassScene extends FrameLayout {
                 Canvas c = new Canvas(bgCache);
                 c.scale(cw / (float) w, ch / (float) h);
                 bg.drawTo(c);
+                cacheVersion++;
             }
         } catch (Throwable t) {
             // 大屏/低内存设备: 捕获失败就跳过, 不崩溃
@@ -58,6 +60,11 @@ public class GlassScene extends FrameLayout {
 
     public Bitmap getCache() {
         return bgCache;
+    }
+
+    /** 背景缓存版本(变化说明需要重绘玻璃) */
+    public long getCacheVersion() {
+        return cacheVersion;
     }
 
     public void recycle() {
