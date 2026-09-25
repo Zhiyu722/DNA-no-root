@@ -49,12 +49,20 @@ d8 --release --lib "$ANDROID_JAR" --min-api 26 \
 
 echo "== [5/7] build native libs (C liquid glass) =="
 if [ -d csrc ] && [ -f csrc/liquidglass.c ]; then
-    mkdir -p "$NATIVELIB/arm64-v8a"
+    # 64 位(arm64) + 32 位(armv7) 都编一份: 只有 arm64 时, 32 位设备会因"无匹配ABI"装不上
+    mkdir -p "$NATIVELIB/arm64-v8a" "$NATIVELIB/armeabi-v7a"
     clang -O3 -ffast-math -std=c99 -fPIC -shared -DANDROID \
         -Icsrc csrc/liquidglass.c csrc/liquidglass_jni.c \
         -o "$NATIVELIB/arm64-v8a/libliquidglass_jni.so" -lm
-    echo "  原生库 arm64-v8a: $(stat -c%s "$NATIVELIB/arm64-v8a/libliquidglass_jni.so") 字节"
-    # 如需 32 位可再编一份(这里保持精简)
+    echo "  arm64-v8a:   $(stat -c%s "$NATIVELIB/arm64-v8a/libliquidglass_jni.so") 字节"
+    if clang -target armv7a-linux-androideabi24 -O3 -ffast-math -std=c99 -fPIC -shared -DANDROID \
+        -Icsrc csrc/liquidglass.c csrc/liquidglass_jni.c \
+        -o "$NATIVELIB/armeabi-v7a/libliquidglass_jni.so" -lm 2>/dev/null; then
+        echo "  armeabi-v7a: $(stat -c%s "$NATIVELIB/armeabi-v7a/libliquidglass_jni.so") 字节"
+    else
+        rmdir "$NATIVELIB/armeabi-v7a" 2>/dev/null || true
+        echo "  (32 位工具链不可用, 仅 arm64)"
+    fi
 else
     echo "  跳过(未找到 csrc/liquidglass.c)"
 fi
