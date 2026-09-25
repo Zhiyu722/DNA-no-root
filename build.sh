@@ -69,19 +69,88 @@ fi
 
 echo "== [6/7] pack dex + native libs into apk =="
 python3 - "$OUT" "$DEX" "$NATIVELIB" <<'PY'
-import sys, shutil, zipfile, os
+import sys, zipfile, os, struct
+
 out, dex, nat = sys.argv[1], sys.argv[2], sys.argv[3]
-shutil.copy(out + '/base.apk', out + '/unsigned.apk')
-with zipfile.ZipFile(out + '/unsigned.apk', 'a', zipfile.ZIP_DEFLATED) as z:
-    z.write(dex + '/classes.dex', 'classes.dex')
-    if os.path.isdir(nat):
-        for root, dirs, files in os.walk(nat):
-            for n in files:
-                p = os.path.join(root, n)
-                arc = 'lib/' + os.path.relpath(p, nat).replace(os.sep, '/')
-                z.write(p, arc)
-                print('  + ' + arc)
+base = out + '/base.apk'
+unsigned = out + '/unsigned.apk'
+ALIGN = 4096        # 原生库页对齐(等效 zipalign -p 4)
+
+libs = []
+if os.path.isdir(nat):
+    for root, dirs, files in os.walk(nat):
+        for n in sorted(files):
+            fp = os.path.join(root, n)
+            arc = 'lib/' + os.path.relpath(fp, nat).replace(os.sep, '/')
+            libs.append((arc, open(fp, 'rb').read()))
+
+with open(dex + '/classes.dex', 'rb') as f:
+    dex_data = f.read()
+
+
+def measure(path):
+    """返回 {档案名: 数据起始偏移} —— 直接从写好的 zip 读, 不依赖 tell()"""
+    raw = open(path, 'rb').read()
+    z = zipfile.ZipFile(path)
+    res = {}
+    for n in z.namelist():
+        i = z.getinfo(n)
+        off = i.header_offset
+        nl, el = struct.unpack('<HH', raw[off + 26:off + 30])
+        res[n] = off + 30 + nl + el
+    return res
+
+
+def build(pads):
+    """pads: {档案名: 额外padding字节数}; 第一遍全 0"""
+    with zipfile.ZipFile(base, 'r') as zin, \
+         zipfile.ZipFile(unsigned, 'w', zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            zi = zipfile.ZipInfo(info.filename)
+            zi.compress_type = info.compress_type
+            zi.external_attr = info.external_attr
+            zi.date_time = info.date_time
+            zout.writestr(zi, zin.read(info.filename))
+        d = zipfile.ZipInfo('classes.dex'); d.compress_type = zipfile.ZIP_DEFLATED
+        zout.writestr(d, dex_data)
+        for arc, data in libs:
+            nm = arc.encode('utf-8')
+            pad = pads.get(arc, 0) or (ALIGN - (len(nm)) % ALIGN) % ALIGN
+            if pad and pad < 4:
+                pad += ALIGN
+            zi = zipfile.ZipInfo(arc)
+            zi.compress_type = zipfile.ZIP_STORED
+            zi.external_attr = 0o644 << 16
+            zi.extra = (struct.pack('<HH', 0xD935, pad - 4) + b'\x00' * (pad - 4)) if pad >= 4 else b''
+            zout.writestr(zi, data)
+
+
+# 第一遍: 粗对齐
+build({})
+pos = measure(unsigned)
+pads = {}
+for arc, data in libs:
+    need = (ALIGN - (pos[arc] % ALIGN)) % ALIGN
+    nm = arc.encode('utf-8')
+    base_pad = (ALIGN - (len(nm)) % ALIGN) % ALIGN
+    if base_pad and base_pad < 4:
+        base_pad += ALIGN
+    pads[arc] = base_pad + need
+    if pads[arc] and pads[arc] < 4:
+        pads[arc] += ALIGN
+
+# 第二遍: 按实测误差修正
+build(pads)
+pos = measure(unsigned)
+ok = True
+for arc, data in libs:
+    good = pos[arc] % ALIGN == 0
+    ok = ok and good
+    print('  + %s (STORED, %d 字节, 偏移=%d, 4K对齐=%s)'
+          % (arc, len(data), pos[arc], 'OK' if good else 'FAIL'))
+print('  原生库对齐:', '全部通过' if ok else '仍有偏差')
 PY
+echo "  (对齐由构建脚本内置实现, 无需 zipalign)" 
 
 echo "== [7/7] sign =="
 if [ ! -f "$KSTORE" ]; then
